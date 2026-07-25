@@ -87,6 +87,81 @@ export const Secret = Type.Object(
 );
 export type Secret = Static<typeof Secret>;
 
+const PeerDID4InputDocument = Type.Record(Type.String(), Type.Unknown(), {
+  description:
+    "did:peer:4 input document — a DID document without `id`, using relative references such as `#key-1`",
+  examples: [
+    {
+      "@context": ["https://www.w3.org/ns/did/v1"],
+      verificationMethod: [
+        {
+          id: "#key-1",
+          type: "Ed25519VerificationKey2020",
+          publicKeyMultibase: "z6MkrCD1csqtgdj8sjrsu8jxcbeyP6m7LiK87NzhfWqio5yr",
+        },
+      ],
+      authentication: ["#key-1"],
+    },
+  ],
+});
+
+export const PeerDID4CreateRequest = Type.Object(
+  { document: PeerDID4InputDocument },
+  { description: "Derive a did:peer:4 from an input document" }
+);
+export type PeerDID4CreateRequest = Static<typeof PeerDID4CreateRequest>;
+
+export const PeerDID4CreateResponse = Type.Object(
+  {
+    did: Type.String({ description: "Long form did:peer:4 (self-certifying)" }),
+    shortDid: Type.String({ description: "Short form did:peer:4" }),
+    didDocument: Type.Any({
+      description: "Resolved document for the long form DID",
+    }),
+    shortDidDocument: Type.Any({
+      description: "Resolved document for the short form DID",
+    }),
+    didcommDidDoc: DIDDoc,
+  },
+  { description: "Derived did:peer:4 identifiers and documents" }
+);
+export type PeerDID4CreateResponse = Static<typeof PeerDID4CreateResponse>;
+
+export const PeerDID4ResolveShortRequest = Type.Object(
+  {
+    document: PeerDID4InputDocument,
+    did: Type.Optional(
+      Type.String({
+        description:
+          "Expected short form DID; when supplied, the document is verified to hash to it",
+      })
+    ),
+  },
+  { description: "Resolve a short form did:peer:4 from its input document" }
+);
+export type PeerDID4ResolveShortRequest = Static<
+  typeof PeerDID4ResolveShortRequest
+>;
+
+export const DIDCommDIDDocRequest = Type.Object(
+  {
+    did: Type.String({
+      description: "DID to resolve and convert to the DIDComm DIDDoc format",
+    }),
+  },
+  { description: "Resolve a DID into the DIDComm WASM DIDDoc format" }
+);
+export type DIDCommDIDDocRequest = Static<typeof DIDCommDIDDocRequest>;
+
+export const DIDCommDIDDocResponse = Type.Object(
+  { didDoc: DIDDoc },
+  {
+    description:
+      "DID document in the format accepted by the /didcomm/* endpoints",
+  }
+);
+export type DIDCommDIDDocResponse = Static<typeof DIDCommDIDDocResponse>;
+
 export const DIDResolutionResult = Type.Object(
   {
     didDocument: Type.Any({ description: "Resolved DID Document" }),

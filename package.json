@@ -20,6 +20,7 @@
     "@fastify/swagger-ui": "^5.2.1",
     "@fastify/type-provider-typebox": "^6.1.0",
     "@sinclair/typebox": "^0.34.14",
+    "bs58": "^6.0.0",
     "did-resolver": "^4.1.0",
     "didcomm-node": "^0.4.1",
     "didwebvh-ts": "^2.7.1",

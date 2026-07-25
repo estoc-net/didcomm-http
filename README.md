@@ -21,7 +21,23 @@ All DIDComm endpoints are stateless — caller provides DID docs and secrets in 
 
 | Method | Path | Description |
 |--------|------|-------------|
-| POST | `/did/resolve` | Resolve did:web or did:webvh |
+| POST | `/did/resolve` | Resolve did:web, did:webvh or did:peer:4 (long form) |
+| POST | `/did/didcomm-doc` | Resolve a DID into the DIDDoc format the `/didcomm/*` endpoints accept |
+
+### did:peer:4
+
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/did/peer/4` | Derive long + short form DIDs from an input document |
+| POST | `/did/peer/4/resolve-short` | Resolve a short form DID given its input document |
+
+`/did/peer/4` returns `didcommDidDoc` alongside the W3C documents, ready to pass
+straight into `/didcomm/*`. Resolution follows the spec and keeps references
+relative (`#key-1`); the DIDComm DIDDoc conversion absolutizes them, which
+didcomm-rust requires because it derives a DID by splitting a `kid` on `#`.
+
+A short form `did:peer:4` carries no document, so `/did/resolve` returns 404 for
+it — use `/did/peer/4/resolve-short` with the input document instead.
 
 ### OpenAPI
 

@@ -11,6 +11,8 @@
 - **@sinclair/typebox** for JSON Schema definitions — drives both validation and OpenAPI generation
 - **didcomm-node** (CJS) for DIDComm WASM — NOT `didcomm` (ESM), which requires `--experimental-wasm-modules`
 - All DIDComm endpoints are **stateless**: caller provides DID docs and secrets in every request
+- **did:peer:4** is implemented in-tree (`src/services/did-peer-4.ts`), ported from `references/did-peer-4-ts` — the upstream package is not published to npm. `varint` is dropped; both multicodec prefixes are constants
+- `src/services/did-doc.ts` converts W3C DID documents into the flat didcomm-rust DIDDoc shape
 
 ## Code Conventions
 - No `as` type assertions in `src/` — use proper types, type providers, or normalize at boundaries
@@ -18,6 +20,8 @@
 - WASM returns `null` (not `undefined`) for absent optional fields — use `toBeFalsy()` in tests, not `toBeUndefined()`
 - Routes use `TypedFastify` type alias with `TypeBoxTypeProvider` for automatic body/params inference
 - DID resolution error responses return `DIDResolutionResult` (not `ErrorResponse`) with appropriate HTTP status
+- didcomm-rust has no `Multikey` verification method type — `toDIDCommDIDDoc` remaps it to the 2020 suite via the multicodec prefix
+- did:peer:4 resolution keeps references relative per the spec; absolutization happens only in `toDIDCommDIDDoc`
 
 ## Project Structure
 ```

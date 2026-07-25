@@ -1,0 +1,122 @@
+import { describe, it, expect } from "vitest";
+import {
+  absolutizeReferences,
+  decode,
+  encodeLongForm,
+  encodeShortForm,
+  isLongForm,
+  isShortForm,
+  longToShort,
+  resolveLongForm,
+  resolveShortForm,
+  resolveShortFormFromDocument,
+} from "../../src/services/did-peer-4.js";
+import {
+  PEER_4_INPUT_DOCUMENT,
+  PEER_4_SHORT_DID,
+} from "../fixtures/peer-did-4.js";
+
+const LONG_DID = encodeLongForm(PEER_4_INPUT_DOCUMENT);
+
+describe("did:peer:4 encoding", () => {
+  it("matches the spec test vector", () => {
+    expect(encodeShortForm(PEER_4_INPUT_DOCUMENT)).toBe(PEER_4_SHORT_DID);
+    expect(longToShort(LONG_DID)).toBe(PEER_4_SHORT_DID);
+  });
+
+  it("recognizes long and short forms", () => {
+    expect(isLongForm(LONG_DID)).toBe(true);
+    expect(isShortForm(LONG_DID)).toBe(false);
+    expect(isShortForm(PEER_4_SHORT_DID)).toBe(true);
+    expect(isLongForm(PEER_4_SHORT_DID)).toBe(false);
+  });
+
+  it("round-trips the input document", () => {
+    expect(decode(LONG_DID)).toStrictEqual(PEER_4_INPUT_DOCUMENT);
+  });
+
+  it("rejects a tampered document", () => {
+    const [hash] = LONG_DID.slice("did:peer:4".length).split(":");
+    const tampered = encodeLongForm({ ...PEER_4_INPUT_DOCUMENT, extra: true });
+    const forged = `did:peer:4${hash}:${tampered.split(":")[3]}`;
+
+    expect(() => decode(forged)).toThrow(/Hash is invalid/);
+  });
+
+  it("refuses to decode a short form", () => {
+    expect(() => decode(PEER_4_SHORT_DID)).toThrow(/short form/);
+  });
+});
+
+describe("did:peer:4 resolution", () => {
+  it("resolves the long form with the short form as an alias", () => {
+    const doc = resolveLongForm(LONG_DID);
+
+    expect(doc.id).toBe(LONG_DID);
+    expect(doc.alsoKnownAs).toStrictEqual([PEER_4_SHORT_DID]);
+  });
+
+  it("resolves the short form with the long form as an alias", () => {
+    const doc = resolveShortForm(LONG_DID);
+
+    expect(doc.id).toBe(PEER_4_SHORT_DID);
+    expect(doc.alsoKnownAs).toStrictEqual([LONG_DID]);
+  });
+
+  it("defaults verification method controllers to the DID", () => {
+    const doc = resolveLongForm(LONG_DID);
+    const methods = doc.verificationMethod;
+
+    expect(Array.isArray(methods)).toBe(true);
+    for (const method of Array.isArray(methods) ? methods : []) {
+      expect(method.controller).toBe(LONG_DID);
+    }
+  });
+
+  it("keeps references relative, per the spec", () => {
+    const doc = resolveLongForm(LONG_DID);
+
+    expect(doc.authentication).toStrictEqual(["#6MkrCD1c"]);
+  });
+
+  it("verifies the document hashes to the expected short form DID", () => {
+    const doc = resolveShortFormFromDocument(
+      PEER_4_INPUT_DOCUMENT,
+      PEER_4_SHORT_DID
+    );
+
+    expect(doc.id).toBe(PEER_4_SHORT_DID);
+    expect(() =>
+      resolveShortFormFromDocument(PEER_4_INPUT_DOCUMENT, "did:peer:4zQmWrong")
+    ).toThrow(/DID mismatch/);
+  });
+});
+
+describe("absolutizeReferences", () => {
+  it("rewrites relative references against the document id", () => {
+    const doc = absolutizeReferences(resolveLongForm(LONG_DID));
+
+    expect(doc.authentication).toStrictEqual([`${LONG_DID}#6MkrCD1c`]);
+    expect(doc.keyAgreement).toStrictEqual([`${LONG_DID}#6LSqPZfn`]);
+
+    const methods = Array.isArray(doc.verificationMethod)
+      ? doc.verificationMethod
+      : [];
+    expect(methods.map((method) => method.id)).toStrictEqual([
+      `${LONG_DID}#6LSqPZfn`,
+      `${LONG_DID}#6MkrCD1c`,
+    ]);
+
+    const services = Array.isArray(doc.service) ? doc.service : [];
+    expect(services[0].id).toBe(`${LONG_DID}#didcommmessaging-0`);
+  });
+
+  it("leaves absolute references untouched", () => {
+    const doc = absolutizeReferences({
+      id: "did:example:alice",
+      authentication: ["did:example:alice#key-1"],
+    });
+
+    expect(doc.authentication).toStrictEqual(["did:example:alice#key-1"]);
+  });
+});
