@@ -83,18 +83,52 @@ export function validateInputDocument(inputDocument: PeerDocument): void {
   }
 
   const methods = inputDocument.verificationMethod;
-  if (!Array.isArray(methods)) {
-    return;
+  if (Array.isArray(methods)) {
+    for (const method of methods) {
+      if (isRecord(method)) {
+        assertNotAbsolute(method.id, "Verification method id");
+      }
+    }
   }
 
-  for (const method of methods) {
-    // The DID is a hash of this document, so a self-reference cannot be known
-    // ahead of time — an absolute verification method id is necessarily wrong.
-    if (isRecord(method) && typeof method.id === "string" && !method.id.startsWith("#")) {
-      throw new PeerDID4Error(
-        `Verification method id must be a relative reference like "#key-1", got "${method.id}"`
-      );
+  for (const relationship of VERIFICATION_RELATIONSHIPS) {
+    const entries = inputDocument[relationship];
+    if (!Array.isArray(entries)) {
+      continue;
     }
+    for (const entry of entries) {
+      // A string entry is a *reference*, and may legitimately point at another
+      // DID's key. An embedded object *defines* a key in this document, so its
+      // id is a self-reference and must be relative.
+      if (isRecord(entry)) {
+        assertNotAbsolute(entry.id, `Embedded ${relationship} verification method id`);
+      }
+    }
+  }
+
+  if (Array.isArray(inputDocument.service)) {
+    for (const service of inputDocument.service) {
+      if (isRecord(service)) {
+        assertNotAbsolute(service.id, "Service id");
+      }
+    }
+  }
+}
+
+/**
+ * Identifiers defined by the input document are self-references, and the DID is
+ * a hash of that document — so an absolute one cannot be known ahead of time
+ * and is necessarily wrong.
+ *
+ * Only absoluteness is checked. Relative DID URLs have several legal shapes
+ * (`#key-1`, `?version=1#key-1`, `key-1`), and enumerating them here would
+ * reject valid documents for no benefit.
+ */
+function assertNotAbsolute(id: unknown, label: string): void {
+  if (typeof id === "string" && id.startsWith("did:")) {
+    throw new PeerDID4Error(
+      `${label} must be a relative reference like "#key-1", got the absolute "${id}"`
+    );
   }
 }
 
@@ -212,8 +246,22 @@ function contextualizeDocument(did: string, document: PeerDocument): PeerDocumen
   return contextualized;
 }
 
+/**
+ * Resolve a relative DID URL against the DID.
+ *
+ * Fragment (`#key-1`) and query (`?version=1#key-1`) references are resolved by
+ * concatenation, which is what RFC 3986 recomposition reduces to for a base
+ * with no authority, path, query or fragment of its own.
+ *
+ * Path-style references (`/foo`, `key-1`) are left alone. A DID has no
+ * authority component, so RFC 3986 would resolve `/foo` against the base to
+ * `did:/foo` — dropping the method-specific id, plainly not the intent — and
+ * DID Core does not define what should happen instead.
+ */
 function absolutize(reference: string, did: string): string {
-  return reference.startsWith("#") ? `${did}${reference}` : reference;
+  return reference.startsWith("#") || reference.startsWith("?")
+    ? `${did}${reference}`
+    : reference;
 }
 
 /**

@@ -111,7 +111,43 @@ describe("validateInputDocument", () => {
           { id: "did:example:bogus#key-1", type: "Ed25519VerificationKey2020" },
         ],
       })
-    ).toThrow(/must be a relative reference/);
+    ).toThrow(/Verification method id must be a relative reference/);
+  });
+
+  it("rejects an absolute id on an embedded verification method", () => {
+    expect(() =>
+      validateInputDocument({
+        authentication: [
+          { id: "did:example:bogus#key-1", type: "Ed25519VerificationKey2020" },
+        ],
+      })
+    ).toThrow(/Embedded authentication verification method id/);
+  });
+
+  it("rejects an absolute service id", () => {
+    expect(() =>
+      validateInputDocument({
+        service: [{ id: "did:example:bogus#svc", type: "DIDCommMessaging" }],
+      })
+    ).toThrow(/Service id must be a relative reference/);
+  });
+
+  it("allows relationship references to another DID's key", () => {
+    // A string entry is a reference, not a definition — pointing at a mediator
+    // or another controller's key is legitimate.
+    expect(() =>
+      validateInputDocument({ authentication: ["did:example:mediator#key-1"] })
+    ).not.toThrow();
+  });
+
+  it("allows relative DID URLs that are not plain fragments", () => {
+    expect(() =>
+      validateInputDocument({
+        verificationMethod: [
+          { id: "?version=1#key-1", type: "Ed25519VerificationKey2020" },
+        ],
+      })
+    ).not.toThrow();
   });
 
   it("is not applied when resolving, so sloppy peers stay interoperable", () => {
@@ -161,6 +197,28 @@ describe("absolutizeReferences", () => {
       "did:example:alice#key-2",
       "did:example:mediator#key-1",
     ]);
+  });
+
+  it("resolves query-form relative DID URLs", () => {
+    const doc = absolutizeReferences({
+      id: "did:example:alice",
+      authentication: ["?version=1#key-1"],
+    });
+
+    expect(doc.authentication).toStrictEqual([
+      "did:example:alice?version=1#key-1",
+    ]);
+  });
+
+  it("leaves path-style references alone rather than guessing", () => {
+    // RFC 3986 would resolve these against a base with no authority in a way
+    // that discards the method-specific id, so we do not rewrite them.
+    const doc = absolutizeReferences({
+      id: "did:example:alice",
+      authentication: ["/key-1", "key-2"],
+    });
+
+    expect(doc.authentication).toStrictEqual(["/key-1", "key-2"]);
   });
 
   it("leaves absolute references untouched", () => {
