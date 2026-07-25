@@ -147,20 +147,51 @@ describe("POST /did/didcomm-doc", () => {
   });
 });
 
+describe("POST /did/peer/4 input document validation", () => {
+  it("rejects a root id", async () => {
+    const res = await app.inject({
+      method: "POST",
+      url: "/did/peer/4",
+      payload: {
+        document: { ...PEER_4_INPUT_DOCUMENT, id: "did:example:bogus" },
+      },
+    });
+
+    expect(res.statusCode).toBe(400);
+    expect(res.json().error).toBe("InvalidInputDocument");
+  });
+
+  it("rejects an absolute verification method id", async () => {
+    const res = await app.inject({
+      method: "POST",
+      url: "/did/peer/4",
+      payload: {
+        document: {
+          verificationMethod: [
+            { id: "did:example:bogus#key-1", type: "Ed25519VerificationKey2020" },
+          ],
+        },
+      },
+    });
+
+    expect(res.statusCode).toBe(400);
+  });
+});
+
 describe("did:peer:4 end to end through DIDComm", () => {
+  const create = async (document: Record<string, unknown>) => {
+    const res = await app.inject({
+      method: "POST",
+      url: "/did/peer/4",
+      payload: { document },
+    });
+    expect(res.statusCode).toBe(200);
+    return res.json();
+  };
+
   it("packs and unpacks an encrypted message between two peer DIDs", async () => {
     const alice = generatePeerDID4Party("https://alice.example/didcomm");
     const bob = generatePeerDID4Party("https://bob.example/didcomm");
-
-    const create = async (document: Record<string, unknown>) => {
-      const res = await app.inject({
-        method: "POST",
-        url: "/did/peer/4",
-        payload: { document },
-      });
-      expect(res.statusCode).toBe(200);
-      return res.json();
-    };
 
     const aliceDID = await create(alice.inputDocument);
     const bobDID = await create(bob.inputDocument);
@@ -205,5 +236,47 @@ describe("did:peer:4 end to end through DIDComm", () => {
     expect(body.metadata.encrypted).toBe(true);
     expect(body.metadata.authenticated).toBe(true);
     expect(body.metadata.non_repudiation).toBe(true);
+  });
+
+  it("still packs when a peer's document carries an unsupported key type", async () => {
+    const alice = generatePeerDID4Party("https://alice.example/didcomm");
+    const bob = generatePeerDID4Party("https://bob.example/didcomm");
+
+    // A counterparty is free to publish key types didcomm-rust cannot read.
+    // As long as they are not the keys in use, packing must still succeed.
+    const bobDocument = structuredClone(bob.inputDocument);
+    bobDocument.verificationMethod.push({
+      id: "#key-9",
+      type: "UnsupportedVerificationMethod2026",
+      publicKeyMultibase: "z6MkrCD1csqtgdj8sjrsu8jxcbeyP6m7LiK87NzhfWqio5yr",
+    });
+
+    const aliceDID = await create(alice.inputDocument);
+    const bobDID = await create(bobDocument);
+
+    expect(
+      bobDID.didcommDidDoc.verificationMethod.map((method: { type: string }) => method.type)
+    ).toContain("Other");
+
+    const packed = await app.inject({
+      method: "POST",
+      url: "/didcomm/pack/encrypted",
+      payload: {
+        message: {
+          id: "peer-4-unsupported-key",
+          typ: "application/didcomm-plain+json",
+          type: "https://example.com/protocols/test/1.0/message",
+          body: { hello: "peer" },
+          from: aliceDID.did,
+          to: [bobDID.did],
+        },
+        to: bobDID.did,
+        from: aliceDID.did,
+        didDocs: [aliceDID.didcommDidDoc, bobDID.didcommDidDoc],
+        secrets: alice.secretsFor(aliceDID.did),
+      },
+    });
+
+    expect(packed.statusCode).toBe(200);
   });
 });

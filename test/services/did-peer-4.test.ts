@@ -10,6 +10,7 @@ import {
   resolveLongForm,
   resolveShortForm,
   resolveShortFormFromDocument,
+  validateInputDocument,
 } from "../../src/services/did-peer-4.js";
 import {
   PEER_4_INPUT_DOCUMENT,
@@ -92,6 +93,35 @@ describe("did:peer:4 resolution", () => {
   });
 });
 
+describe("validateInputDocument", () => {
+  it("accepts a conformant input document", () => {
+    expect(() => validateInputDocument(PEER_4_INPUT_DOCUMENT)).not.toThrow();
+  });
+
+  it("rejects a root id", () => {
+    expect(() =>
+      validateInputDocument({ ...PEER_4_INPUT_DOCUMENT, id: "did:example:bogus" })
+    ).toThrow(/must not have a root `id`/);
+  });
+
+  it("rejects an absolute verification method id", () => {
+    expect(() =>
+      validateInputDocument({
+        verificationMethod: [
+          { id: "did:example:bogus#key-1", type: "Ed25519VerificationKey2020" },
+        ],
+      })
+    ).toThrow(/must be a relative reference/);
+  });
+
+  it("is not applied when resolving, so sloppy peers stay interoperable", () => {
+    const nonConformant = { ...PEER_4_INPUT_DOCUMENT, id: "did:example:bogus" };
+    const did = encodeLongForm(nonConformant);
+
+    expect(resolveLongForm(did).id).toBe(did);
+  });
+});
+
 describe("absolutizeReferences", () => {
   it("rewrites relative references against the document id", () => {
     const doc = absolutizeReferences(resolveLongForm(LONG_DID));
@@ -109,6 +139,28 @@ describe("absolutizeReferences", () => {
 
     const services = Array.isArray(doc.service) ? doc.service : [];
     expect(services[0].id).toBe(`${LONG_DID}#didcommmessaging-0`);
+  });
+
+  it("absolutizes relative routing keys but leaves mediator keys alone", () => {
+    const doc = absolutizeReferences({
+      id: "did:example:alice",
+      service: [
+        {
+          id: "#didcomm-0",
+          type: "DIDCommMessaging",
+          serviceEndpoint: {
+            uri: "https://example.com/endpoint",
+            routingKeys: ["#key-2", "did:example:mediator#key-1"],
+          },
+        },
+      ],
+    });
+
+    const services = Array.isArray(doc.service) ? doc.service : [];
+    expect(services[0].serviceEndpoint.routingKeys).toStrictEqual([
+      "did:example:alice#key-2",
+      "did:example:mediator#key-1",
+    ]);
   });
 
   it("leaves absolute references untouched", () => {

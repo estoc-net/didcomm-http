@@ -52,28 +52,32 @@ function prefixMatches(prefix: Uint8Array | null, expected: Uint8Array): boolean
 /**
  * didcomm-rust has no `Multikey` variant, so a Multikey verification method is
  * rewritten to the equivalent 2020 suite based on its multicodec prefix.
+ *
+ * Anything still unrecognized becomes `Other`. didcomm-rust's
+ * VerificationMethodType has no catch-all deserializer, so leaving an unknown
+ * type in place fails deserialization of the *entire* DIDDoc — one unusable
+ * method in a counterparty's document would otherwise break every operation.
+ * An `Other` method survives the round trip but cannot be used for crypto.
  */
 function normalizeType(type: string, method: Record<string, unknown>): string {
   if (KNOWN_VERIFICATION_METHOD_TYPES.has(type)) {
     return type;
   }
-  if (type !== "Multikey") {
-    return type;
+
+  if (type === "Multikey") {
+    const multibase = method.publicKeyMultibase;
+    if (typeof multibase === "string") {
+      const prefix = multicodecPrefix(multibase);
+      if (prefixMatches(prefix, ED25519_PUB)) {
+        return "Ed25519VerificationKey2020";
+      }
+      if (prefixMatches(prefix, X25519_PUB)) {
+        return "X25519KeyAgreementKey2020";
+      }
+    }
   }
 
-  const multibase = method.publicKeyMultibase;
-  if (typeof multibase !== "string") {
-    return type;
-  }
-
-  const prefix = multicodecPrefix(multibase);
-  if (prefixMatches(prefix, ED25519_PUB)) {
-    return "Ed25519VerificationKey2020";
-  }
-  if (prefixMatches(prefix, X25519_PUB)) {
-    return "X25519KeyAgreementKey2020";
-  }
-  return type;
+  return "Other";
 }
 
 function toVerificationMethod(

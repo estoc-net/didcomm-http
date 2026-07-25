@@ -75,6 +75,44 @@ describe("toDIDCommDIDDoc", () => {
     ]);
   });
 
+  it("maps unrecognized verification method types to Other", () => {
+    // didcomm-rust fails to deserialize the whole DIDDoc on an unknown type,
+    // so an unusable method must not poison the rest of the document.
+    const didDoc = toDIDCommDIDDoc({
+      id: "did:example:alice",
+      verificationMethod: [
+        { id: "#key-1", type: "UnsupportedVerificationMethod2026" },
+        { id: "#key-2", type: "Multikey", publicKeyMultibase: "zNotAKnownPrefix" },
+      ],
+    });
+
+    expect(didDoc.verificationMethod.map((method) => method.type)).toStrictEqual([
+      "Other",
+      "Other",
+    ]);
+  });
+
+  it("absolutizes relative routing keys", () => {
+    const didDoc = toDIDCommDIDDoc({
+      id: "did:example:alice",
+      service: [
+        {
+          id: "#didcomm-0",
+          type: "DIDCommMessaging",
+          serviceEndpoint: {
+            uri: "https://example.com/endpoint",
+            routingKeys: ["#key-2", "did:example:mediator#key-1"],
+          },
+        },
+      ],
+    });
+
+    expect(didDoc.service[0].serviceEndpoint).toStrictEqual({
+      uri: "https://example.com/endpoint",
+      routingKeys: ["did:example:alice#key-2", "did:example:mediator#key-1"],
+    });
+  });
+
   it("normalizes a string serviceEndpoint and drops other service types", () => {
     const didDoc = toDIDCommDIDDoc({
       id: "did:example:alice",

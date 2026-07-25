@@ -21,7 +21,9 @@
 - Routes use `TypedFastify` type alias with `TypeBoxTypeProvider` for automatic body/params inference
 - DID resolution error responses return `DIDResolutionResult` (not `ErrorResponse`) with appropriate HTTP status
 - didcomm-rust has no `Multikey` verification method type — `toDIDCommDIDDoc` remaps it to the 2020 suite via the multicodec prefix
-- did:peer:4 resolution keeps references relative per the spec; absolutization happens only in `toDIDCommDIDDoc`
+- didcomm-rust's `VerificationMethodType` has no catch-all deserializer, so an unknown type string fails the **whole** DIDDoc — `toDIDCommDIDDoc` maps anything unrecognized to `Other`
+- did:peer:4 resolution keeps references relative per the spec; absolutization happens only in `toDIDCommDIDDoc` (verification methods, relationships, service ids, and `routingKeys`)
+- `validateInputDocument` runs on create only, never on resolve: did:peer:4 is self-certifying, so rejecting a counterparty's non-conformant document would cost interoperability for nothing
 
 ## Project Structure
 ```

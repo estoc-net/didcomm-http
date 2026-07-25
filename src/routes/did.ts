@@ -19,6 +19,7 @@ import {
   resolveLongForm,
   resolveShortForm,
   resolveShortFormFromDocument,
+  validateInputDocument,
 } from "../services/did-peer-4.js";
 
 type TypedFastify = FastifyInstance<any, any, any, any, TypeBoxTypeProvider>;
@@ -100,7 +101,16 @@ export async function didRoutes(fastify: TypedFastify) {
         400: ErrorResponse,
       },
     },
-    handler: async (request) => {
+    handler: async (request, reply) => {
+      try {
+        validateInputDocument(request.body.document);
+      } catch (err) {
+        return reply.status(400).send({
+          error: "InvalidInputDocument",
+          message: err instanceof Error ? err.message : String(err),
+        });
+      }
+
       const did = encodeLongForm(request.body.document);
       const didDocument = resolveLongForm(did);
 

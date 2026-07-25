@@ -67,6 +67,37 @@ function hashDocument(encodedDocument: string): string {
   return toMultibaseB58(concatBytes(MULTIHASH_SHA2_256, digest));
 }
 
+/**
+ * Check an input document against the constraints a caller creating a new
+ * did:peer:4 can actually be wrong about.
+ *
+ * Deliberately *not* applied when resolving: did:peer:4 is self-certifying, so
+ * a document that violates a SHOULD still yields a sound DID. Rejecting a
+ * counterparty's DID over that would trade interoperability for nothing.
+ */
+export function validateInputDocument(inputDocument: PeerDocument): void {
+  if (inputDocument.id !== undefined) {
+    throw new PeerDID4Error(
+      "Input document must not have a root `id`; the DID is derived from the document"
+    );
+  }
+
+  const methods = inputDocument.verificationMethod;
+  if (!Array.isArray(methods)) {
+    return;
+  }
+
+  for (const method of methods) {
+    // The DID is a hash of this document, so a self-reference cannot be known
+    // ahead of time — an absolute verification method id is necessarily wrong.
+    if (isRecord(method) && typeof method.id === "string" && !method.id.startsWith("#")) {
+      throw new PeerDID4Error(
+        `Verification method id must be a relative reference like "#key-1", got "${method.id}"`
+      );
+    }
+  }
+}
+
 /** Derive the long form did:peer:4 from an input document. */
 export function encodeLongForm(inputDocument: PeerDocument): string {
   const encodedDocument = encodeDocument(inputDocument);
@@ -216,13 +247,44 @@ export function absolutizeReferences(document: PeerDocument): PeerDocument {
   }
 
   if (Array.isArray(result.service)) {
-    result.service = result.service.map((service) => {
-      if (!isRecord(service) || typeof service.id !== "string") {
-        return service;
-      }
-      return { ...service, id: absolutize(service.id, did) };
-    });
+    result.service = result.service.map((service) =>
+      isRecord(service) ? absolutizeService(service, did) : service
+    );
   }
+
+  return result;
+}
+
+/**
+ * Routing keys are DID URLs that DIDComm forwarding actually resolves, so a
+ * relative one has to be absolutized like any other reference.
+ */
+function absolutizeEndpoint(endpoint: unknown, did: string): unknown {
+  if (!isRecord(endpoint) || !Array.isArray(endpoint.routingKeys)) {
+    return endpoint;
+  }
+  return {
+    ...endpoint,
+    routingKeys: endpoint.routingKeys.map((key) =>
+      typeof key === "string" ? absolutize(key, did) : key
+    ),
+  };
+}
+
+function absolutizeService(
+  service: Record<string, unknown>,
+  did: string
+): Record<string, unknown> {
+  const result = { ...service };
+
+  if (typeof result.id === "string") {
+    result.id = absolutize(result.id, did);
+  }
+
+  const endpoint = result.serviceEndpoint;
+  result.serviceEndpoint = Array.isArray(endpoint)
+    ? endpoint.map((entry) => absolutizeEndpoint(entry, did))
+    : absolutizeEndpoint(endpoint, did);
 
   return result;
 }
