@@ -19,3 +19,6 @@
 [submodule "references/did-resolver"]
 	path = references/did-resolver
 	url = git@github.com:decentralized-identity/did-resolver.git
+[submodule "references/did-peer-4-ts"]
+	path = references/did-peer-4-ts
+	url = git@github.com:dbluhm/did-peer-4-ts.git
