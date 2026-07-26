@@ -33,7 +33,7 @@ export async function didRoutes(fastify: TypedFastify) {
   fastify.post("/did/resolve", {
     schema: {
       tags: ["DID"],
-      summary: "Resolve a DID (did:web + did:webvh + did:peer:4)",
+      summary: "Resolve a DID (did:web + did:webvh + did:peer:2 + did:peer:4)",
       body: Type.Object({
         did: Type.String({
           description: "DID to resolve, e.g. did:web:example.com",

@@ -21,8 +21,19 @@ All DIDComm endpoints are stateless — caller provides DID docs and secrets in 
 
 | Method | Path | Description |
 |--------|------|-------------|
-| POST | `/did/resolve` | Resolve did:web, did:webvh or did:peer:4 (long form) |
+| POST | `/did/resolve` | Resolve did:web, did:webvh, did:peer:2 or did:peer:4 (long form) |
 | POST | `/did/didcomm-doc` | Resolve a DID into the DIDDoc format the `/didcomm/*` endpoints accept |
+
+### did:peer:2
+
+Resolving a `did:peer:2` is decoding it: the keys and services are in the
+identifier, so nothing is fetched and nothing can be stale. There is no create
+endpoint to match `/did/peer/4` — whoever holds the keys assembles the string.
+
+It is here because mediators are named that way. An agent behind one publishes
+the mediator's DID as its service endpoint, so a message addressed to that agent
+cannot be routed, and a message from it cannot be unpacked, unless this method
+resolves.
 
 ### did:peer:4
 

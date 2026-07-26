@@ -12,6 +12,7 @@
 - **didcomm-node** (CJS) for DIDComm WASM — NOT `didcomm` (ESM), which requires `--experimental-wasm-modules`
 - All DIDComm endpoints are **stateless**: caller provides DID docs and secrets in every request
 - **did:peer:4** is implemented in-tree (`src/services/did-peer-4.ts`), ported from `references/did-peer-4-ts` — the upstream package is not published to npm. `varint` is dropped; both multicodec prefixes are constants
+- **did:peer:2** is implemented in-tree too (`src/services/did-peer-2.ts`) — resolution only, since the document is encoded in the DID. Needed because mediators are named by did:peer:2, so routing to (and unpacking from) a mediated agent depends on it
 - `src/services/did-doc.ts` converts W3C DID documents into the flat didcomm-rust DIDDoc shape
 
 ## Code Conventions

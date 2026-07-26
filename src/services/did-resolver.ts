@@ -1,6 +1,7 @@
 import { Resolver, type DIDDocument } from "did-resolver";
 import { getResolver as getWebResolver } from "web-did-resolver";
 import { resolveDID as resolveWebVH } from "didwebvh-ts";
+import { isPeerDID2, resolve as resolvePeer2 } from "./did-peer-2.js";
 import { isPeerDID4, isShortForm, resolveLongForm } from "./did-peer-4.js";
 
 let cachedResolver: Resolver | null = null;
@@ -25,6 +26,10 @@ export interface ResolveResult {
 }
 
 export async function resolveDID(did: string): Promise<ResolveResult> {
+  if (isPeerDID2(did)) {
+    return resolveDidPeer2(did);
+  }
+
   if (isPeerDID4(did)) {
     return resolveDidPeer4(did);
   }
@@ -45,6 +50,25 @@ export async function resolveDID(did: string): Promise<ResolveResult> {
       message: `Unsupported DID method: ${did.split(":")[1] ?? "unknown"}`,
     },
   };
+}
+
+function resolveDidPeer2(did: string): ResolveResult {
+  try {
+    return {
+      didDocument: resolvePeer2(did),
+      didDocumentMetadata: {},
+      didResolutionMetadata: { contentType: "application/did+ld+json" },
+    };
+  } catch (err) {
+    return {
+      didDocument: null,
+      didDocumentMetadata: {},
+      didResolutionMetadata: {
+        error: "invalidDid",
+        message: err instanceof Error ? err.message : String(err),
+      },
+    };
+  }
 }
 
 function resolveDidPeer4(did: string): ResolveResult {
