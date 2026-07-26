@@ -10,7 +10,10 @@
 - **Fastify 5 + TypeScript ESM** with `@fastify/type-provider-typebox` for type-safe routes
 - **@sinclair/typebox** for JSON Schema definitions — drives both validation and OpenAPI generation
 - **didcomm-node** (CJS) for DIDComm WASM — NOT `didcomm` (ESM), which requires `--experimental-wasm-modules`
-- All DIDComm endpoints are **stateless**: caller provides DID docs and secrets in every request
+- DIDComm endpoints **resolve DID documents themselves** (`ChainedResolver` in `src/services/didcomm.ts`): `didDocs` is optional and *pins* — a listed document is used as given and never fetched. Secrets are always the caller's to send, and none are kept
+- `packEncrypted` defaults `forward` to `true` and always returns `deliveryEndpoint`. didcomm-rust reports `metadata.messaging_service` **only when it actually wrapped a forward**, so a directly reachable recipient needs the `deliveryEndpoint()` fallback — do not delete it
+- `unpack` reports `from` (claimed) and `verifiedFrom` (proven) apart, because didcomm-rust compares `message.from` against the sending key only when **packing**. An envelope from another implementation can claim anyone; `senderVerified` is the comparison
+- `src/services/identity.ts` generates keys for `/did/peer/4/create`. Secret ids must be absolutized against the DID, since didcomm-rust matches a secret to a verification method by id
 - **did:peer:4** is implemented in-tree (`src/services/did-peer-4.ts`), ported from `references/did-peer-4-ts` — the upstream package is not published to npm. `varint` is dropped; both multicodec prefixes are constants
 - **did:peer:2** is implemented in-tree too (`src/services/did-peer-2.ts`) — resolution only, since the document is encoded in the DID. Needed because mediators are named by did:peer:2, so routing to (and unpacking from) a mediated agent depends on it
 - `src/services/did-doc.ts` converts W3C DID documents into the flat didcomm-rust DIDDoc shape

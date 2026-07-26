@@ -280,3 +280,61 @@ describe("did:peer:4 end to end through DIDComm", () => {
     expect(packed.statusCode).toBe(200);
   });
 });
+
+describe("POST /did/peer/4/create", () => {
+  it("generates a whole identity, keys and all", async () => {
+    const res = await app.inject({
+      method: "POST",
+      url: "/did/peer/4/create",
+      payload: { service: "https://example.com/didcomm" },
+    });
+
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+
+    expect(body.did.startsWith("did:peer:4zQm")).toBe(true);
+    expect(body.secrets).toHaveLength(2);
+    expect(body.didcommDidDoc.service[0].serviceEndpoint.uri).toBe(
+      "https://example.com/didcomm"
+    );
+
+    // The input document round-trips: it is what the short form resolves from.
+    const short = await app.inject({
+      method: "POST",
+      url: "/did/peer/4/resolve-short",
+      payload: { document: body.inputDocument, did: body.shortDid },
+    });
+
+    expect(short.statusCode).toBe(200);
+    expect(short.json().didDocument.id).toBe(body.shortDid);
+  });
+
+  it("takes both curves by default and only what is asked for otherwise", async () => {
+    const both = await app.inject({
+      method: "POST",
+      url: "/did/peer/4/create",
+      payload: {},
+    });
+
+    expect(both.json().secrets).toHaveLength(2);
+
+    const signing = await app.inject({
+      method: "POST",
+      url: "/did/peer/4/create",
+      payload: { keys: ["Ed25519"] },
+    });
+
+    expect(signing.json().secrets).toHaveLength(1);
+    expect(signing.json().didcommDidDoc.keyAgreement).toEqual([]);
+  });
+
+  it("refuses a curve it cannot generate", async () => {
+    const res = await app.inject({
+      method: "POST",
+      url: "/did/peer/4/create",
+      payload: { keys: ["P-256"] },
+    });
+
+    expect(res.statusCode).toBe(400);
+  });
+});

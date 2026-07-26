@@ -7,12 +7,15 @@ import {
   DIDResolutionResult,
   PeerDID4CreateRequest,
   PeerDID4CreateResponse,
+  PeerDID4GenerateRequest,
+  PeerDID4GenerateResponse,
   PeerDID4ResolveShortRequest,
 } from "../schemas/did.js";
 import { ErrorResponse } from "../schemas/didcomm.js";
 
 import { resolveDID } from "../services/did-resolver.js";
 import { toDIDCommDIDDoc } from "../services/did-doc.js";
+import { CURVES, createIdentity } from "../services/identity.js";
 import {
   encodeLongForm,
   longToShort,
@@ -121,6 +124,25 @@ export async function didRoutes(fastify: TypedFastify) {
         shortDidDocument: resolveShortForm(did),
         didcommDidDoc: toDIDCommDIDDoc(didDocument),
       };
+    },
+  });
+
+  fastify.post("/did/peer/4/create", {
+    schema: {
+      tags: ["DID"],
+      summary: "Generate keys and the did:peer:4 that names them",
+      description:
+        "Everything /did/peer/4 needs, made here: fresh keys, the input document, the DID, and the secrets to use it. The private keys are in the response, so this suits an identity meant to be temporary — a test, a demo, one side of a conversation nobody will resume. A DID that stands for somebody generates its keys where they will live.",
+      body: PeerDID4GenerateRequest,
+      response: {
+        200: PeerDID4GenerateResponse,
+        400: ErrorResponse,
+      },
+    },
+    handler: async (request) => {
+      const { keys, service } = request.body;
+
+      return createIdentity(keys ?? [...CURVES], service);
     },
   });
 

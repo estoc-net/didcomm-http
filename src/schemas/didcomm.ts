@@ -62,6 +62,24 @@ export const IMessage = Type.Object(
 );
 export type IMessage = Static<typeof IMessage>;
 
+/**
+ * Documents are resolved, not supplied: did:web, did:webvh, did:peer:2 and
+ * did:peer:4 all resolve here, and a mediator standing in front of a recipient
+ * resolves along with them. Listing one pins it — used exactly as given, never
+ * fetched — which is how a document published nowhere gets in, such as a short
+ * form did:peer:4 that only its holder can expand.
+ */
+const PinnedDIDDocs = Type.Optional(
+  Type.Array(DIDDoc, {
+    description: "DID Documents to use instead of resolving them",
+  })
+);
+
+const secretsFor = (whose: string) =>
+  Type.Optional(
+    Type.Array(Secret, { description: `${whose} secrets (private keys)` })
+  );
+
 // --- Pack Encrypted ---
 
 export const PackEncryptedRequest = Type.Object(
@@ -85,7 +103,8 @@ export const PackEncryptedRequest = Type.Object(
         ),
         forward: Type.Optional(
           Type.Boolean({
-            description: "Wrap in Forward messages (default: false)",
+            description:
+              "Wrap in Forward messages for whatever mediators stand in front of the recipient (default: true)",
           })
         ),
         forward_headers: Type.Optional(
@@ -111,12 +130,8 @@ export const PackEncryptedRequest = Type.Object(
         ),
       })
     ),
-    didDocs: Type.Array(DIDDoc, {
-      description: "DID Documents for all parties",
-    }),
-    secrets: Type.Array(Secret, {
-      description: "Sender secrets (private keys)",
-    }),
+    didDocs: PinnedDIDDocs,
+    secrets: secretsFor("Sender"),
   },
   { description: "Pack encrypted request" }
 );
@@ -137,6 +152,10 @@ export const PackEncryptedMetadata = Type.Object({
 export const PackEncryptedResponse = Type.Object(
   {
     packedMessage: Type.String({ description: "Packed JWE message" }),
+    deliveryEndpoint: Type.Union([Type.String(), Type.Null()], {
+      description:
+        "Where to POST the packed message: a mediator's address when the message was wrapped in a Forward, the recipient's own otherwise, and null when the recipient publishes no DIDComm endpoint at all — which means they can only be answered on a connection they opened",
+    }),
     metadata: PackEncryptedMetadata,
   },
   { description: "Pack encrypted response" }
@@ -149,12 +168,8 @@ export const PackSignedRequest = Type.Object(
   {
     message: IMessage,
     sign_by: Type.String({ description: "Signer DID or key ID" }),
-    didDocs: Type.Array(DIDDoc, {
-      description: "DID Documents for all parties",
-    }),
-    secrets: Type.Array(Secret, {
-      description: "Signer secrets (private keys)",
-    }),
+    didDocs: PinnedDIDDocs,
+    secrets: secretsFor("Signer"),
   },
   { description: "Pack signed request" }
 );
@@ -176,9 +191,7 @@ export type PackSignedResponse = Static<typeof PackSignedResponse>;
 export const PackPlaintextRequest = Type.Object(
   {
     message: IMessage,
-    didDocs: Type.Array(DIDDoc, {
-      description: "DID Documents for all parties",
-    }),
+    didDocs: PinnedDIDDocs,
   },
   { description: "Pack plaintext request" }
 );
@@ -205,12 +218,8 @@ export const UnpackRequest = Type.Object(
         unwrap_re_wrapping_forward: Type.Optional(Type.Boolean()),
       })
     ),
-    didDocs: Type.Array(DIDDoc, {
-      description: "DID Documents for all parties",
-    }),
-    secrets: Type.Array(Secret, {
-      description: "Recipient secrets (private keys)",
-    }),
+    didDocs: PinnedDIDDocs,
+    secrets: secretsFor("Recipient"),
   },
   { description: "Unpack request" }
 );
@@ -236,6 +245,18 @@ export const UnpackMetadata = Type.Object({
 export const UnpackResponse = Type.Object(
   {
     message: IMessage,
+    from: Type.Union([Type.String(), Type.Null()], {
+      description:
+        "The sender the plaintext claims, which is only a claim: nothing about an envelope binds it to the key that closed it",
+    }),
+    verifiedFrom: Type.Union([Type.String(), Type.Null()], {
+      description:
+        "The DID whose key actually closed the envelope, or signed it; null when the message proves nobody, as anonymous encryption does",
+    }),
+    senderVerified: Type.Boolean({
+      description: "Whether the claimed sender is the proven one",
+    }),
+    encrypted: Type.Boolean(),
     metadata: UnpackMetadata,
   },
   { description: "Unpack response" }

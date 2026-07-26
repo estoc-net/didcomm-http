@@ -81,3 +81,12 @@ describe("POST /did/didcomm-doc", () => {
     expect(didDoc.keyAgreement).toStrictEqual([`${MEDIATOR_DID}#key-2`]);
   });
 });
+
+describe("GET /health", () => {
+  it("answers once the WASM is loaded and the routes are up", async () => {
+    const res = await app.inject({ method: "GET", url: "/health" });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual({ status: "ok" });
+  });
+});

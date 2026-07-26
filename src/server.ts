@@ -1,4 +1,5 @@
 import Fastify from "fastify";
+import { Type } from "@sinclair/typebox";
 import { TypeBoxTypeProvider } from "@fastify/type-provider-typebox";
 import swagger from "@fastify/swagger";
 import swaggerUI from "@fastify/swagger-ui";
@@ -37,6 +38,17 @@ export async function buildServer() {
 
   await fastify.register(didcommRoutes);
   await fastify.register(didRoutes);
+
+  // Answering at all is the whole test: the WASM is loaded at import time, so a
+  // server that is listening is a server that can pack.
+  fastify.get("/health", {
+    schema: {
+      tags: ["DID"],
+      summary: "Liveness check",
+      response: { 200: Type.Object({ status: Type.Literal("ok") }) },
+    },
+    handler: async () => ({ status: "ok" as const }),
+  });
 
   fastify.get("/openapi.json", {
     schema: { hide: true },

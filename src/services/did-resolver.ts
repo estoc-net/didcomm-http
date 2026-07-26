@@ -3,6 +3,8 @@ import { getResolver as getWebResolver } from "web-did-resolver";
 import { resolveDID as resolveWebVH } from "didwebvh-ts";
 import { isPeerDID2, resolve as resolvePeer2 } from "./did-peer-2.js";
 import { isPeerDID4, isShortForm, resolveLongForm } from "./did-peer-4.js";
+import { toDIDCommDIDDoc } from "./did-doc.js";
+import type { DIDDoc } from "../schemas/did.js";
 
 let cachedResolver: Resolver | null = null;
 
@@ -50,6 +52,87 @@ export async function resolveDID(did: string): Promise<ResolveResult> {
       message: `Unsupported DID method: ${did.split(":")[1] ?? "unknown"}`,
     },
   };
+}
+
+/** How long a fetched document is reused, in seconds. */
+const CACHE_TTL = Number(process.env.DID_CACHE_TTL ?? 300) * 1000;
+
+/** Past this many entries the oldest is dropped, so a busy endpoint cannot grow it forever. */
+const CACHE_MAX = 512;
+
+const cache = new Map<string, { doc: DIDDoc; expiresAt: number }>();
+
+/**
+ * A did:peer carries its own document, so resolving one is decoding a string.
+ * Only the methods that cost a request are worth keeping, and keeping only
+ * those also means a stranger introducing themselves cannot push out the
+ * mediators and correspondents that were.
+ */
+function isFetched(did: string): boolean {
+  return did.startsWith("did:web:") || did.startsWith("did:webvh:");
+}
+
+function cached(did: string): DIDDoc | null {
+  const entry = cache.get(did);
+  if (entry === undefined) {
+    return null;
+  }
+
+  if (entry.expiresAt <= Date.now()) {
+    cache.delete(did);
+    return null;
+  }
+
+  return entry.doc;
+}
+
+function remember(did: string, doc: DIDDoc): void {
+  if (cache.size >= CACHE_MAX) {
+    const oldest = cache.keys().next();
+    if (!oldest.done) {
+      cache.delete(oldest.value);
+    }
+  }
+
+  cache.set(did, { doc, expiresAt: Date.now() + CACHE_TTL });
+}
+
+/** Forgets every fetched document. For tests, and for a key rotation nobody wants to wait out. */
+export function clearDIDCache(): void {
+  cache.clear();
+}
+
+/**
+ * Resolve a DID into the flat DIDDoc the pack and unpack operations read,
+ * caching whatever had to be fetched.
+ *
+ * Anything that does not resolve, or resolves to something that cannot be
+ * converted, is `null` — the same answer as a DID that does not exist, which is
+ * what it amounts to for a message addressed to it.
+ */
+export async function resolveDIDCommDoc(did: string): Promise<DIDDoc | null> {
+  const hit = cached(did);
+  if (hit !== null) {
+    return hit;
+  }
+
+  const { didDocument } = await resolveDID(did);
+  if (didDocument === null) {
+    return null;
+  }
+
+  let doc: DIDDoc;
+  try {
+    doc = toDIDCommDIDDoc(didDocument);
+  } catch {
+    return null;
+  }
+
+  if (isFetched(did)) {
+    remember(did, doc);
+  }
+
+  return doc;
 }
 
 function resolveDidPeer2(did: string): ResolveResult {

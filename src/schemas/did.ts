@@ -127,6 +127,54 @@ export const PeerDID4CreateResponse = Type.Object(
 );
 export type PeerDID4CreateResponse = Static<typeof PeerDID4CreateResponse>;
 
+export const PeerDID4GenerateRequest = Type.Object(
+  {
+    keys: Type.Optional(
+      Type.Array(
+        Type.Union([Type.Literal("Ed25519"), Type.Literal("X25519")]),
+        {
+          description:
+            "Curves to generate, in order, named #key-1 onwards. Ed25519 lands in `authentication`, X25519 in `keyAgreement`; an agent that both proves who it is and receives encrypted messages needs one of each, which is the default.",
+          default: ["Ed25519", "X25519"],
+        }
+      )
+    ),
+    service: Type.Optional(
+      Type.String({
+        description:
+          "DIDCommMessaging endpoint to publish: a URL to be posted to, or a mediator's DID to be reached through. Left out, the identity has no address, and can only be answered on a connection it opened.",
+        examples: ["https://example.com/didcomm"],
+      })
+    ),
+  },
+  {
+    description:
+      "Generate keys and the did:peer:4 that names them. The private keys come back in the response, so this is for identities meant to be temporary.",
+  }
+);
+export type PeerDID4GenerateRequest = Static<typeof PeerDID4GenerateRequest>;
+
+export const PeerDID4GenerateResponse = Type.Object(
+  {
+    did: Type.String({ description: "Long form did:peer:4 (self-certifying)" }),
+    shortDid: Type.String({ description: "Short form did:peer:4" }),
+    inputDocument: PeerDID4InputDocument,
+    didDocument: Type.Any({
+      description: "Resolved document for the long form DID",
+    }),
+    shortDidDocument: Type.Any({
+      description: "Resolved document for the short form DID",
+    }),
+    didcommDidDoc: DIDDoc,
+    secrets: Type.Array(Secret, {
+      description:
+        "The private keys, ready to hand to the /didcomm/* endpoints",
+    }),
+  },
+  { description: "A generated did:peer:4 identity" }
+);
+export type PeerDID4GenerateResponse = Static<typeof PeerDID4GenerateResponse>;
+
 export const PeerDID4ResolveShortRequest = Type.Object(
   {
     document: PeerDID4InputDocument,
