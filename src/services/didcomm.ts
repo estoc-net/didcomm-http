@@ -51,6 +51,29 @@ function didOf(value: string | null | undefined): string | null {
   return value ? value.split("#")[0] : null;
 }
 
+/**
+ * The optional fields the WASM actually filled in.
+ *
+ * didcomm-rust returns `null` for every optional it did not set, though its own
+ * types call those fields absent. A `null` then reaches fast-json-stringify,
+ * which serializes it as the empty value of whatever the schema says the field
+ * is: an unsigned message left here carrying `sign_by_kid: ""`, and one nobody
+ * forwarded carried `messaging_service: {}`. Both read as a fact — a key with
+ * no id, a service with no address — where the truth is that nothing was said.
+ * Dropping the nulls makes the value match the type it already claims.
+ */
+function stated<T extends object>(value: T): Partial<T> {
+  const kept: Partial<T> = {};
+
+  for (const key in value) {
+    if (value[key] !== null) {
+      kept[key] = value[key];
+    }
+  }
+
+  return kept;
+}
+
 function endpointURI(service: DIDDoc["service"][number]): string | null {
   const { serviceEndpoint } = service;
 
@@ -146,7 +169,8 @@ export async function packEncrypted(req: PackEncryptedRequest) {
     deliveryEndpoint:
       metadata.messaging_service?.service_endpoint ??
       (await deliveryEndpoint(req.to, didResolver)),
-    metadata,
+    // The recipients are always known; everything else was said or it was not.
+    metadata: { ...stated(metadata), to_kids: metadata.to_kids },
   };
 }
 
@@ -204,6 +228,14 @@ export async function unpack(req: UnpackRequest) {
     verifiedFrom,
     senderVerified: verifiedFrom !== null && verifiedFrom === from,
     encrypted: metadata.encrypted,
-    metadata,
+    // What an envelope was is always answered; what was in its headers is not.
+    metadata: {
+      ...stated(metadata),
+      encrypted: metadata.encrypted,
+      authenticated: metadata.authenticated,
+      non_repudiation: metadata.non_repudiation,
+      anonymous_sender: metadata.anonymous_sender,
+      re_wrapped_in_forward: metadata.re_wrapped_in_forward,
+    },
   };
 }

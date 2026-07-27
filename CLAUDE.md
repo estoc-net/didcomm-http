@@ -22,6 +22,7 @@
 - No `as` type assertions in `src/` — use proper types, type providers, or normalize at boundaries
 - WASM `PackSignedMetadata.sign_by_kid` is typed as `String` (wrapper object) — normalize with `String()` to primitive
 - WASM returns `null` (not `undefined`) for absent optional fields — use `toBeFalsy()` in tests, not `toBeUndefined()`
+- ...and a `null` that reaches fast-json-stringify is serialized as the **empty value of its schema type**, not omitted: `""` for a string, `{}` for an object. Every WASM metadata object goes through `stated()` in `src/services/didcomm.ts` before being returned, or an unsigned message ships `sign_by_kid: ""` and an unforwarded one ships `messaging_service: {}` — both of which the schema says cannot happen. A service-level test cannot see this; assert it on `res.json()` in `test/routes/`
 - Routes use `TypedFastify` type alias with `TypeBoxTypeProvider` for automatic body/params inference
 - DID resolution error responses return `DIDResolutionResult` (not `ErrorResponse`) with appropriate HTTP status
 - didcomm-rust has no `Multikey` verification method type — `toDIDCommDIDDoc` remaps it to the 2020 suite via the multicodec prefix
