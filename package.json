@@ -9,8 +9,7 @@
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
     "openapi:export": "node --import tsx scripts/export-openapi.ts",
-    "docker:build": "docker build -t onyxblade/didcomm-http .",
-    "docker:push": "docker build -t onyxblade/didcomm-http:latest -t onyxblade/didcomm-http:$(git rev-parse --short HEAD) . && docker push onyxblade/didcomm-http:latest && docker push onyxblade/didcomm-http:$(git rev-parse --short HEAD)"
+    "docker:build": "docker build -t ghcr.io/onyxblade/didcomm-http ."
   },
   "author": "merely",
   "license": "Apache-2.0",
