@@ -1,5 +1,4 @@
-import type { FastifyInstance } from "fastify";
-import type { TypeBoxTypeProvider } from "@fastify/type-provider-typebox";
+import type { TypedFastify } from "../types/fastify.js";
 import {
   PackEncryptedRequest,
   PackEncryptedResponse,
@@ -17,8 +16,6 @@ import {
   packPlaintext,
   unpack,
 } from "../services/didcomm.js";
-
-type TypedFastify = FastifyInstance<any, any, any, any, TypeBoxTypeProvider>;
 
 export async function didcommRoutes(fastify: TypedFastify) {
   fastify.post("/didcomm/pack/encrypted", {

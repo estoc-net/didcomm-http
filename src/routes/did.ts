@@ -1,6 +1,5 @@
 import { Type } from "@sinclair/typebox";
-import type { FastifyInstance } from "fastify";
-import type { TypeBoxTypeProvider } from "@fastify/type-provider-typebox";
+import type { TypedFastify } from "../types/fastify.js";
 import {
   DIDCommDIDDocRequest,
   DIDCommDIDDocResponse,
@@ -24,8 +23,6 @@ import {
   resolveShortFormFromDocument,
   validateInputDocument,
 } from "../services/did-peer-4.js";
-
-type TypedFastify = FastifyInstance<any, any, any, any, TypeBoxTypeProvider>;
 
 const RESOLUTION_ERROR_STATUS: Record<string, 400> = {
   methodNotSupported: 400,

@@ -7,8 +7,10 @@
 - `npm run openapi:export` — Export OpenAPI spec to stdout
 
 ## Architecture
-- **Fastify 5 + TypeScript ESM** with `@fastify/type-provider-typebox` for type-safe routes
+- **Fastify 5 + TypeScript ESM** with a TypeBox type provider for type-safe routes
 - **@sinclair/typebox** for JSON Schema definitions — drives both validation and OpenAPI generation
+- A shape more than one operation uses goes through `shared()` in `src/schemas/shared.ts`, which names it and returns the reference every use goes through. `server.ts` registers all of them before the first route, and passes a `refResolver` so the document names them by `$id` rather than by the positional `def-0` default, which would renumber the rest whenever one is added. Without any of this every operation carries its own copy of the shape, and a generated client gets a type per copy: the message packed encrypted and the one packed signed become two unrelated types, and no caller can build one message and pack it both ways. Do not name a branch of an undiscriminated union (`ServiceEndpoint`) — a client cannot tell which branch it holds, so the name would be reachable from nothing
+- Routes take `TypedFastify` from `src/types/fastify.ts` rather than `@fastify/type-provider-typebox`'s provider. That one inlines its conditional over the deferred `this['schema']`, and a `Type.Ref` does not survive it: every referenced property arrives at the handler as `unknown`, though `Static` infers the same schema exactly outside a route. Ours passes the deferred type through a named alias, which resolves it
 - **didcomm-node** (CJS) for DIDComm WASM — NOT `didcomm` (ESM), which requires `--experimental-wasm-modules`
 - DIDComm endpoints **resolve DID documents themselves** (`ChainedResolver` in `src/services/didcomm.ts`): `didDocs` is optional and *pins* — a listed document is used as given and never fetched. Secrets are always the caller's to send, and none are kept
 - `packEncrypted` defaults `forward` to `true` and always returns `deliveryEndpoint`. didcomm-rust reports `metadata.messaging_service` **only when it actually wrapped a forward**, so a directly reachable recipient needs the `deliveryEndpoint()` fallback — do not delete it
@@ -33,7 +35,8 @@
 ## Project Structure
 ```
 src/
-  schemas/     — TypeBox schemas (did.ts, didcomm.ts)
+  schemas/     — TypeBox schemas (did.ts, didcomm.ts) + shared.ts, the named ones
+  types/       — fastify.ts: the type provider and the TypedFastify alias
   services/    — Business logic (didcomm.ts, did-resolver.ts)
   routes/      — Fastify routes (didcomm.ts, did.ts)
   plugins/     — Error handler

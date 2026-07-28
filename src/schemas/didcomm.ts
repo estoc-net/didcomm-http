@@ -1,64 +1,73 @@
 import { Type, type Static } from "@sinclair/typebox";
 import { DIDDoc, Secret } from "./did.js";
+import { shared } from "./shared.js";
 
-export const Attachment = Type.Object(
-  {
-    data: Type.Union([
-      Type.Object({
-        base64: Type.String(),
-        jws: Type.Optional(Type.String()),
-      }),
-      Type.Object({
-        json: Type.Unknown(),
-        jws: Type.Optional(Type.String()),
-      }),
-      Type.Object({
-        links: Type.Array(Type.String()),
-        hash: Type.String(),
-        jws: Type.Optional(Type.String()),
-      }),
-    ]),
-    id: Type.Optional(Type.String()),
-    description: Type.Optional(Type.String()),
-    filename: Type.Optional(Type.String()),
-    media_type: Type.Optional(Type.String()),
-    format: Type.Optional(Type.String()),
-    lastmod_time: Type.Optional(Type.Number()),
-    byte_count: Type.Optional(Type.Number()),
-  },
-  { description: "Message attachment" }
+export const Attachment = shared(
+  "Attachment",
+  Type.Object(
+    {
+      data: Type.Union([
+        Type.Object({
+          base64: Type.String(),
+          jws: Type.Optional(Type.String()),
+        }),
+        Type.Object({
+          json: Type.Unknown(),
+          jws: Type.Optional(Type.String()),
+        }),
+        Type.Object({
+          links: Type.Array(Type.String()),
+          hash: Type.String(),
+          jws: Type.Optional(Type.String()),
+        }),
+      ]),
+      id: Type.Optional(Type.String()),
+      description: Type.Optional(Type.String()),
+      filename: Type.Optional(Type.String()),
+      media_type: Type.Optional(Type.String()),
+      format: Type.Optional(Type.String()),
+      lastmod_time: Type.Optional(Type.Number()),
+      byte_count: Type.Optional(Type.Number()),
+    },
+    { description: "Message attachment" }
+  )
 );
 
-export const IMessage = Type.Object(
-  {
-    id: Type.String({ description: "Unique message ID" }),
-    typ: Type.String({
-      description: "Message type header",
-      default: "application/didcomm-plain+json",
-    }),
-    type: Type.String({ description: "Message Type URI" }),
-    body: Type.Unknown({ description: "Message body" }),
-    from: Type.Optional(Type.String({ description: "Sender DID" })),
-    to: Type.Optional(
-      Type.Array(Type.String(), { description: "Recipient DIDs" })
-    ),
-    thid: Type.Optional(Type.String({ description: "Thread ID" })),
-    pthid: Type.Optional(Type.String({ description: "Parent thread ID" })),
-    created_time: Type.Optional(
-      Type.Number({ description: "Created time (UTC epoch seconds)" })
-    ),
-    expires_time: Type.Optional(
-      Type.Number({ description: "Expiry time (UTC epoch seconds)" })
-    ),
-    from_prior: Type.Optional(
-      Type.String({ description: "Compact serialized signed JWT" })
-    ),
-    attachments: Type.Optional(Type.Array(Attachment)),
-  },
-  {
-    description: "DIDComm plaintext message",
-    additionalProperties: true,
-  }
+// `Message` in the document, `IMessage` here: the I is didcomm-rust's WASM
+// interface naming, which a client of this API has no reason to inherit.
+export const IMessage = shared(
+  "Message",
+  Type.Object(
+    {
+      id: Type.String({ description: "Unique message ID" }),
+      typ: Type.String({
+        description: "Message type header",
+        default: "application/didcomm-plain+json",
+      }),
+      type: Type.String({ description: "Message Type URI" }),
+      body: Type.Unknown({ description: "Message body" }),
+      from: Type.Optional(Type.String({ description: "Sender DID" })),
+      to: Type.Optional(
+        Type.Array(Type.String(), { description: "Recipient DIDs" })
+      ),
+      thid: Type.Optional(Type.String({ description: "Thread ID" })),
+      pthid: Type.Optional(Type.String({ description: "Parent thread ID" })),
+      created_time: Type.Optional(
+        Type.Number({ description: "Created time (UTC epoch seconds)" })
+      ),
+      expires_time: Type.Optional(
+        Type.Number({ description: "Expiry time (UTC epoch seconds)" })
+      ),
+      from_prior: Type.Optional(
+        Type.String({ description: "Compact serialized signed JWT" })
+      ),
+      attachments: Type.Optional(Type.Array(Attachment)),
+    },
+    {
+      description: "DIDComm plaintext message",
+      additionalProperties: true,
+    }
+  )
 );
 export type IMessage = Static<typeof IMessage>;
 
@@ -265,11 +274,14 @@ export type UnpackResponse = Static<typeof UnpackResponse>;
 
 // --- Error ---
 
-export const ErrorResponse = Type.Object(
-  {
-    error: Type.String({ description: "Error type" }),
-    message: Type.String({ description: "Error message" }),
-  },
-  { description: "Error response" }
+export const ErrorResponse = shared(
+  "ErrorResponse",
+  Type.Object(
+    {
+      error: Type.String({ description: "Error type" }),
+      message: Type.String({ description: "Error message" }),
+    },
+    { description: "Error response" }
+  )
 );
 export type ErrorResponse = Static<typeof ErrorResponse>;
