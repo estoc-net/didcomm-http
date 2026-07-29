@@ -45,8 +45,20 @@ PRIVATE_RANGES.addSubnet("198.18.0.0", 15);
 PRIVATE_RANGES.addSubnet("198.51.100.0", 24);
 PRIVATE_RANGES.addSubnet("203.0.113.0", 24);
 PRIVATE_RANGES.addSubnet("224.0.0.0", 3);
-// Inside 2000::/3 but never routed: the documentation range.
+// Inside 2000::/3 but not globally reachable, says IANA's special-purpose
+// registry: the two documentation ranges, the SRv6 block, and 2001::/23 — the
+// IETF protocol block, which contains the benchmarking and ORCHID ranges and
+// Teredo. A few anycast utilities inside that block are reachable, but none
+// of them is anybody's DIDComm endpoint, so the whole block goes. Teredo and
+// 6to4 addresses embed an IPv4 address, which a host with the right tunnel
+// interface would carry a packet to — including a private one. The registry
+// gains a range some years (3fff::/20 and 5f00::/16 arrived in 2024), so this
+// closes the holes it names today rather than completing the allowlist.
+PRIVATE_RANGES.addSubnet("2001::", 23, "ipv6");
 PRIVATE_RANGES.addSubnet("2001:db8::", 32, "ipv6");
+PRIVATE_RANGES.addSubnet("2002::", 16, "ipv6");
+PRIVATE_RANGES.addSubnet("3fff::", 20, "ipv6");
+PRIVATE_RANGES.addSubnet("5f00::", 16, "ipv6");
 
 /**
  * IPv6 is judged the other way around: 2000::/3 (global unicast) is the only

@@ -37,6 +37,24 @@ describe("what deliver refuses to touch", () => {
   it("the IPv6 documentation range", () =>
     refused("http://[2001:db8::1]:3000/didcomm"));
 
+  // Global unicast is not all public: IANA carves special ranges out of
+  // 2000::/3 itself, and these are refused at the boundary rather than left
+  // to time out as unroutable.
+  it("the IPv6 benchmarking range, as the IPv4 list already does", () =>
+    refused("http://[2001:2::1]:3000/didcomm"));
+
+  it("6to4, an IPv4 address in IPv6 clothes — this one wears loopback's", () =>
+    refused("http://[2002:7f00:1::1]:3000/didcomm"));
+
+  it("Teredo, which embeds an IPv4 address the same way", () =>
+    refused("http://[2001::a]:3000/didcomm"));
+
+  it("the newer documentation range, 3fff::/20", () =>
+    refused("http://[3fff::1]:3000/didcomm"));
+
+  it("SRv6 SIDs, which name a route rather than a host", () =>
+    refused("http://[5f00::1]:3000/didcomm"));
+
   it("schemes that are not HTTP", () =>
     refused("wss://example.com/didcomm"));
 
