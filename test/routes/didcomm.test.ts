@@ -20,7 +20,7 @@ describe("POST /didcomm/pack/encrypted", () => {
   it("packs an encrypted message", async () => {
     const res = await app.inject({
       method: "POST",
-      url: "/didcomm/pack/encrypted",
+      url: "/v1/didcomm/pack/encrypted",
       payload: {
         message: MESSAGE_SIMPLE,
         to: "did:example:bob",
@@ -33,13 +33,13 @@ describe("POST /didcomm/pack/encrypted", () => {
     expect(res.statusCode).toBe(200);
     const body = res.json();
     expect(body.packedMessage).toBeTypeOf("string");
-    expect(body.metadata.to_kids.length).toBeGreaterThan(0);
+    expect(body.metadata.toKids.length).toBeGreaterThan(0);
   });
 
   it("returns 400 on invalid body", async () => {
     const res = await app.inject({
       method: "POST",
-      url: "/didcomm/pack/encrypted",
+      url: "/v1/didcomm/pack/encrypted",
       payload: { invalid: true },
     });
 
@@ -51,10 +51,10 @@ describe("POST /didcomm/pack/signed", () => {
   it("packs a signed message", async () => {
     const res = await app.inject({
       method: "POST",
-      url: "/didcomm/pack/signed",
+      url: "/v1/didcomm/pack/signed",
       payload: {
         message: MESSAGE_SIMPLE,
-        sign_by: "did:example:alice",
+        signBy: "did:example:alice",
         didDocs: [ALICE_DID_DOC, BOB_DID_DOC],
         secrets: ALICE_SECRETS,
       },
@@ -63,7 +63,7 @@ describe("POST /didcomm/pack/signed", () => {
     expect(res.statusCode).toBe(200);
     const body = res.json();
     expect(body.packedMessage).toBeTypeOf("string");
-    expect(body.metadata.sign_by_kid).toContain("did:example:alice");
+    expect(body.metadata.signByKid).toContain("did:example:alice");
   });
 });
 
@@ -71,7 +71,7 @@ describe("POST /didcomm/pack/plaintext", () => {
   it("packs a plaintext message", async () => {
     const res = await app.inject({
       method: "POST",
-      url: "/didcomm/pack/plaintext",
+      url: "/v1/didcomm/pack/plaintext",
       payload: {
         message: MESSAGE_SIMPLE,
         didDocs: [ALICE_DID_DOC, BOB_DID_DOC],
@@ -91,7 +91,7 @@ describe("POST /didcomm/unpack", () => {
     // First pack
     const packRes = await app.inject({
       method: "POST",
-      url: "/didcomm/pack/encrypted",
+      url: "/v1/didcomm/pack/encrypted",
       payload: {
         message: MESSAGE_SIMPLE,
         to: "did:example:bob",
@@ -106,7 +106,7 @@ describe("POST /didcomm/unpack", () => {
     // Then unpack
     const unpackRes = await app.inject({
       method: "POST",
-      url: "/didcomm/unpack",
+      url: "/v1/didcomm/unpack",
       payload: {
         message: packedMessage,
         didDocs: [ALICE_DID_DOC, BOB_DID_DOC],
@@ -124,7 +124,7 @@ describe("POST /didcomm/unpack", () => {
   it("unpacks a plaintext message", async () => {
     const packRes = await app.inject({
       method: "POST",
-      url: "/didcomm/pack/plaintext",
+      url: "/v1/didcomm/pack/plaintext",
       payload: {
         message: MESSAGE_SIMPLE,
         didDocs: [ALICE_DID_DOC, BOB_DID_DOC],
@@ -135,7 +135,7 @@ describe("POST /didcomm/unpack", () => {
 
     const unpackRes = await app.inject({
       method: "POST",
-      url: "/didcomm/unpack",
+      url: "/v1/didcomm/unpack",
       payload: {
         message: packedMessage,
         didDocs: [ALICE_DID_DOC, BOB_DID_DOC],
@@ -160,7 +160,7 @@ describe("the fields a response leaves out", () => {
   async function packed(payload: object) {
     const res = await app.inject({
       method: "POST",
-      url: "/didcomm/pack/encrypted",
+      url: "/v1/didcomm/pack/encrypted",
       payload: {
         message: MESSAGE_SIMPLE,
         to: "did:example:bob",
@@ -179,17 +179,17 @@ describe("the fields a response leaves out", () => {
       secrets: ALICE_SECRETS,
     });
 
-    expect(metadata).not.toHaveProperty("sign_by_kid");
-    expect(metadata.from_kid).toContain("did:example:alice");
+    expect(metadata).not.toHaveProperty("signByKid");
+    expect(metadata.fromKid).toContain("did:example:alice");
   });
 
   it("says nothing about a forward nobody wrapped", async () => {
     const { metadata } = await packed({});
 
     // Anonymous, so there is no sender key either.
-    expect(metadata).not.toHaveProperty("messaging_service");
-    expect(metadata).not.toHaveProperty("from_kid");
-    expect(metadata.to_kids.length).toBeGreaterThan(0);
+    expect(metadata).not.toHaveProperty("messagingService");
+    expect(metadata).not.toHaveProperty("fromKid");
+    expect(metadata.toKids.length).toBeGreaterThan(0);
   });
 
   it("says nothing about the headers an envelope did not carry", async () => {
@@ -200,7 +200,7 @@ describe("the fields a response leaves out", () => {
 
     const res = await app.inject({
       method: "POST",
-      url: "/didcomm/unpack",
+      url: "/v1/didcomm/unpack",
       payload: {
         message: packedMessage,
         didDocs: [ALICE_DID_DOC, BOB_DID_DOC],
@@ -211,17 +211,17 @@ describe("the fields a response leaves out", () => {
     const { metadata } = res.json();
 
     // Encrypted but not signed, so everything a signature would have said is
-    // unsaid — including `sign_from`, which is half of what proves a sender.
-    expect(metadata).not.toHaveProperty("sign_from");
-    expect(metadata).not.toHaveProperty("sign_alg");
-    expect(metadata).not.toHaveProperty("signed_message");
-    expect(metadata).not.toHaveProperty("from_prior");
-    expect(metadata).not.toHaveProperty("from_prior_issuer_kid");
+    // unsaid — including `signFrom`, which is half of what proves a sender.
+    expect(metadata).not.toHaveProperty("signFrom");
+    expect(metadata).not.toHaveProperty("signAlg");
+    expect(metadata).not.toHaveProperty("signedMessage");
+    expect(metadata).not.toHaveProperty("fromPrior");
+    expect(metadata).not.toHaveProperty("fromPriorIssuerKid");
 
     // Authcrypt, so the anonymous algorithm is unsaid and the authenticated
     // one is not: absent has to mean absent, not "every optional is dropped".
-    expect(metadata).not.toHaveProperty("enc_alg_anon");
-    expect(metadata.enc_alg_auth).toBeTypeOf("string");
-    expect(metadata.non_repudiation).toBe(false);
+    expect(metadata).not.toHaveProperty("encAlgAnon");
+    expect(metadata.encAlgAuth).toBeTypeOf("string");
+    expect(metadata.nonRepudiation).toBe(false);
   });
 });

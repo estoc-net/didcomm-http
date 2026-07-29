@@ -144,6 +144,33 @@ async function deliveryEndpoint(
   return uri !== null && !uri.startsWith("did:") ? uri : null;
 }
 
+/**
+ * The API speaks camelCase for everything that is its own; didcomm-rust speaks
+ * snake_case. The seam is here, so neither side leaks into the other. Spreading
+ * a `false` spreads nothing, which keeps an option the caller left unsaid
+ * unsaid at the WASM boundary too.
+ */
+function wasmPackOptions(options: PackEncryptedRequest["options"]) {
+  return {
+    // The spec's default, and the only one that reaches an agent behind a
+    // mediator. Turning it off packs a message that can be delivered only to
+    // a recipient with an address of their own.
+    forward: options?.forward ?? true,
+    ...(options?.protectSender !== undefined && {
+      protect_sender: options.protectSender,
+    }),
+    ...(options?.forwardHeaders !== undefined && {
+      forward_headers: options.forwardHeaders,
+    }),
+    ...(options?.messagingService !== undefined && {
+      messaging_service: options.messagingService,
+    }),
+    ...(options?.encAlgAnon !== undefined && {
+      enc_alg_anon: options.encAlgAnon,
+    }),
+  };
+}
+
 export async function packEncrypted(req: PackEncryptedRequest) {
   const didResolver = new ChainedResolver(req.didDocs);
   const secretsResolver = new InMemorySecretsResolver(req.secrets);
@@ -152,25 +179,34 @@ export async function packEncrypted(req: PackEncryptedRequest) {
   const [packedMessage, metadata] = await msg.pack_encrypted(
     req.to,
     req.from ?? null,
-    req.sign_by ?? null,
+    req.signBy ?? null,
     didResolver,
     secretsResolver,
-    {
-      // The spec's default, and the only one that reaches an agent behind a
-      // mediator. Turning it off packs a message that can be delivered only to
-      // a recipient with an address of their own.
-      forward: true,
-      ...req.options,
-    }
+    wasmPackOptions(req.options)
   );
+
+  const service = metadata.messaging_service;
 
   return {
     packedMessage,
     deliveryEndpoint:
-      metadata.messaging_service?.service_endpoint ??
+      service?.service_endpoint ??
       (await deliveryEndpoint(req.to, didResolver)),
     // The recipients are always known; everything else was said or it was not.
-    metadata: { ...stated(metadata), to_kids: metadata.to_kids },
+    metadata: {
+      ...stated({
+        fromKid: metadata.from_kid,
+        signByKid: metadata.sign_by_kid,
+      }),
+      ...(service !== undefined &&
+        service !== null && {
+          messagingService: {
+            id: service.id,
+            serviceEndpoint: service.service_endpoint,
+          },
+        }),
+      toKids: metadata.to_kids,
+    },
   };
 }
 
@@ -180,7 +216,7 @@ export async function packSigned(req: PackSignedRequest) {
   const msg = new Message(req.message);
 
   const [packedMessage, metadata] = await msg.pack_signed(
-    req.sign_by,
+    req.signBy,
     didResolver,
     secretsResolver
   );
@@ -188,7 +224,7 @@ export async function packSigned(req: PackSignedRequest) {
   // WASM types sign_by_kid as String (wrapper), normalize to string primitive
   return {
     packedMessage,
-    metadata: { sign_by_kid: String(metadata.sign_by_kid) },
+    metadata: { signByKid: String(metadata.sign_by_kid) },
   };
 }
 
@@ -209,7 +245,14 @@ export async function unpack(req: UnpackRequest) {
     req.message,
     didResolver,
     secretsResolver,
-    req.options ?? {}
+    {
+      ...(req.options?.expectDecryptByAllKeys !== undefined && {
+        expect_decrypt_by_all_keys: req.options.expectDecryptByAllKeys,
+      }),
+      ...(req.options?.unwrapReWrappingForward !== undefined && {
+        unwrap_re_wrapping_forward: req.options.unwrapReWrappingForward,
+      }),
+    }
   );
 
   const message = msg.as_value();
@@ -227,15 +270,24 @@ export async function unpack(req: UnpackRequest) {
     from,
     verifiedFrom,
     senderVerified: verifiedFrom !== null && verifiedFrom === from,
-    encrypted: metadata.encrypted,
     // What an envelope was is always answered; what was in its headers is not.
     metadata: {
-      ...stated(metadata),
+      ...stated({
+        encryptedFromKid: metadata.encrypted_from_kid,
+        encryptedToKids: metadata.encrypted_to_kids,
+        signFrom: metadata.sign_from,
+        fromPriorIssuerKid: metadata.from_prior_issuer_kid,
+        encAlgAuth: metadata.enc_alg_auth,
+        encAlgAnon: metadata.enc_alg_anon,
+        signAlg: metadata.sign_alg,
+        signedMessage: metadata.signed_message,
+        fromPrior: metadata.from_prior,
+      }),
       encrypted: metadata.encrypted,
       authenticated: metadata.authenticated,
-      non_repudiation: metadata.non_repudiation,
-      anonymous_sender: metadata.anonymous_sender,
-      re_wrapped_in_forward: metadata.re_wrapped_in_forward,
+      nonRepudiation: metadata.non_repudiation,
+      anonymousSender: metadata.anonymous_sender,
+      reWrappedInForward: metadata.re_wrapped_in_forward,
     },
   };
 }

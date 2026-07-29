@@ -18,11 +18,11 @@ afterAll(async () => {
   await app.close();
 });
 
-describe("POST /did/peer/4", () => {
+describe("POST /v1/did/peer/4/encode", () => {
   it("derives both forms and a DIDComm-ready DIDDoc", async () => {
     const res = await app.inject({
       method: "POST",
-      url: "/did/peer/4",
+      url: "/v1/did/peer/4/encode",
       payload: { document: PEER_4_INPUT_DOCUMENT },
     });
 
@@ -39,18 +39,18 @@ describe("POST /did/peer/4", () => {
   });
 });
 
-describe("POST /did/resolve for did:peer:4", () => {
+describe("POST /v1/did/resolve for did:peer:4", () => {
   it("resolves the long form", async () => {
     const created = await app.inject({
       method: "POST",
-      url: "/did/peer/4",
+      url: "/v1/did/peer/4/encode",
       payload: { document: PEER_4_INPUT_DOCUMENT },
     });
     const { did } = created.json();
 
     const res = await app.inject({
       method: "POST",
-      url: "/did/resolve",
+      url: "/v1/did/resolve",
       payload: { did },
     });
 
@@ -61,7 +61,7 @@ describe("POST /did/resolve for did:peer:4", () => {
   it("returns 404 for the short form", async () => {
     const res = await app.inject({
       method: "POST",
-      url: "/did/resolve",
+      url: "/v1/did/resolve",
       payload: { did: PEER_4_SHORT_DID },
     });
 
@@ -72,14 +72,14 @@ describe("POST /did/resolve for did:peer:4", () => {
   it("returns 400 for a tampered long form", async () => {
     const created = await app.inject({
       method: "POST",
-      url: "/did/peer/4",
+      url: "/v1/did/peer/4/encode",
       payload: { document: PEER_4_INPUT_DOCUMENT },
     });
     const { did } = created.json();
 
     const res = await app.inject({
       method: "POST",
-      url: "/did/resolve",
+      url: "/v1/did/resolve",
       payload: { did: `${did}xyz` },
     });
 
@@ -88,11 +88,11 @@ describe("POST /did/resolve for did:peer:4", () => {
   });
 });
 
-describe("POST /did/peer/4/resolve-short", () => {
+describe("POST /v1/did/peer/4/resolve-short", () => {
   it("resolves the short form from its input document", async () => {
     const res = await app.inject({
       method: "POST",
-      url: "/did/peer/4/resolve-short",
+      url: "/v1/did/peer/4/resolve-short",
       payload: { document: PEER_4_INPUT_DOCUMENT, did: PEER_4_SHORT_DID },
     });
 
@@ -103,7 +103,7 @@ describe("POST /did/peer/4/resolve-short", () => {
   it("rejects a document that does not hash to the supplied DID", async () => {
     const res = await app.inject({
       method: "POST",
-      url: "/did/peer/4/resolve-short",
+      url: "/v1/did/peer/4/resolve-short",
       payload: {
         document: PEER_4_INPUT_DOCUMENT,
         did: "did:peer:4zQmd8CpeFPci817KDsbSAKWcXAE2mjvCQSasRewvbSF54Bc",
@@ -115,19 +115,18 @@ describe("POST /did/peer/4/resolve-short", () => {
   });
 });
 
-describe("POST /did/didcomm-doc", () => {
+describe("GET /v1/did/{did}/didcomm", () => {
   it("converts a did:peer:4 into the DIDComm DIDDoc format", async () => {
     const created = await app.inject({
       method: "POST",
-      url: "/did/peer/4",
+      url: "/v1/did/peer/4/encode",
       payload: { document: PEER_4_INPUT_DOCUMENT },
     });
     const { did } = created.json();
 
     const res = await app.inject({
-      method: "POST",
-      url: "/did/didcomm-doc",
-      payload: { did },
+      method: "GET",
+      url: `/v1/did/${did}/didcomm`,
     });
 
     expect(res.statusCode).toBe(200);
@@ -136,22 +135,22 @@ describe("POST /did/didcomm-doc", () => {
     expect(didDoc.keyAgreement).toStrictEqual([`${did}#6LSqPZfn`]);
   });
 
-  it("returns 404 for an unresolvable DID", async () => {
+  it("answers an unresolvable DID as resolution does: 404, same shape", async () => {
     const res = await app.inject({
-      method: "POST",
-      url: "/did/didcomm-doc",
-      payload: { did: PEER_4_SHORT_DID },
+      method: "GET",
+      url: `/v1/did/${PEER_4_SHORT_DID}/didcomm`,
     });
 
     expect(res.statusCode).toBe(404);
+    expect(res.json().didResolutionMetadata.error).toBe("notFound");
   });
 });
 
-describe("POST /did/peer/4 input document validation", () => {
+describe("POST /v1/did/peer/4/encode input document validation", () => {
   it("rejects a root id", async () => {
     const res = await app.inject({
       method: "POST",
-      url: "/did/peer/4",
+      url: "/v1/did/peer/4/encode",
       payload: {
         document: { ...PEER_4_INPUT_DOCUMENT, id: "did:example:bogus" },
       },
@@ -164,7 +163,7 @@ describe("POST /did/peer/4 input document validation", () => {
   it("rejects an absolute verification method id", async () => {
     const res = await app.inject({
       method: "POST",
-      url: "/did/peer/4",
+      url: "/v1/did/peer/4/encode",
       payload: {
         document: {
           verificationMethod: [
@@ -182,7 +181,7 @@ describe("did:peer:4 end to end through DIDComm", () => {
   const create = async (document: Record<string, unknown>) => {
     const res = await app.inject({
       method: "POST",
-      url: "/did/peer/4",
+      url: "/v1/did/peer/4/encode",
       payload: { document },
     });
     expect(res.statusCode).toBe(200);
@@ -198,7 +197,7 @@ describe("did:peer:4 end to end through DIDComm", () => {
 
     const packed = await app.inject({
       method: "POST",
-      url: "/didcomm/pack/encrypted",
+      url: "/v1/didcomm/pack/encrypted",
       payload: {
         message: {
           id: "peer-4-e2e",
@@ -210,7 +209,7 @@ describe("did:peer:4 end to end through DIDComm", () => {
         },
         to: bobDID.did,
         from: aliceDID.did,
-        sign_by: aliceDID.did,
+        signBy: aliceDID.did,
         didDocs: [aliceDID.didcommDidDoc, bobDID.didcommDidDoc],
         secrets: alice.secretsFor(aliceDID.did),
       },
@@ -221,7 +220,7 @@ describe("did:peer:4 end to end through DIDComm", () => {
 
     const unpacked = await app.inject({
       method: "POST",
-      url: "/didcomm/unpack",
+      url: "/v1/didcomm/unpack",
       payload: {
         message: packedMessage,
         didDocs: [aliceDID.didcommDidDoc, bobDID.didcommDidDoc],
@@ -235,7 +234,7 @@ describe("did:peer:4 end to end through DIDComm", () => {
     expect(body.message.from).toBe(aliceDID.did);
     expect(body.metadata.encrypted).toBe(true);
     expect(body.metadata.authenticated).toBe(true);
-    expect(body.metadata.non_repudiation).toBe(true);
+    expect(body.metadata.nonRepudiation).toBe(true);
   });
 
   it("still packs when a peer's document carries an unsupported key type", async () => {
@@ -260,7 +259,7 @@ describe("did:peer:4 end to end through DIDComm", () => {
 
     const packed = await app.inject({
       method: "POST",
-      url: "/didcomm/pack/encrypted",
+      url: "/v1/didcomm/pack/encrypted",
       payload: {
         message: {
           id: "peer-4-unsupported-key",
@@ -281,11 +280,11 @@ describe("did:peer:4 end to end through DIDComm", () => {
   });
 });
 
-describe("POST /did/peer/4/create", () => {
+describe("POST /v1/did/peer/4/generate", () => {
   it("generates a whole identity, keys and all", async () => {
     const res = await app.inject({
       method: "POST",
-      url: "/did/peer/4/create",
+      url: "/v1/did/peer/4/generate",
       payload: { service: "https://example.com/didcomm" },
     });
 
@@ -301,7 +300,7 @@ describe("POST /did/peer/4/create", () => {
     // The input document round-trips: it is what the short form resolves from.
     const short = await app.inject({
       method: "POST",
-      url: "/did/peer/4/resolve-short",
+      url: "/v1/did/peer/4/resolve-short",
       payload: { document: body.inputDocument, did: body.shortDid },
     });
 
@@ -312,7 +311,7 @@ describe("POST /did/peer/4/create", () => {
   it("takes both curves by default and only what is asked for otherwise", async () => {
     const both = await app.inject({
       method: "POST",
-      url: "/did/peer/4/create",
+      url: "/v1/did/peer/4/generate",
       payload: {},
     });
 
@@ -320,7 +319,7 @@ describe("POST /did/peer/4/create", () => {
 
     const signing = await app.inject({
       method: "POST",
-      url: "/did/peer/4/create",
+      url: "/v1/did/peer/4/generate",
       payload: { keys: ["Ed25519"] },
     });
 
@@ -331,7 +330,7 @@ describe("POST /did/peer/4/create", () => {
   it("refuses a curve it cannot generate", async () => {
     const res = await app.inject({
       method: "POST",
-      url: "/did/peer/4/create",
+      url: "/v1/did/peer/4/generate",
       payload: { keys: ["P-256"] },
     });
 

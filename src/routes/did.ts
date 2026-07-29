@@ -1,11 +1,12 @@
-import { Type } from "@sinclair/typebox";
+import type { FastifyReply } from "fastify";
 import type { TypedFastify } from "../types/fastify.js";
 import {
-  DIDCommDIDDocRequest,
   DIDCommDIDDocResponse,
+  DIDParams,
   DIDResolutionResult,
-  PeerDID4CreateRequest,
-  PeerDID4CreateResponse,
+  DIDResolveRequest,
+  PeerDID4EncodeRequest,
+  PeerDID4EncodeResponse,
   PeerDID4GenerateRequest,
   PeerDID4GenerateResponse,
   PeerDID4ResolveShortRequest,
@@ -30,15 +31,42 @@ const RESOLUTION_ERROR_STATUS: Record<string, 400> = {
 };
 
 export async function didRoutes(fastify: TypedFastify) {
-  fastify.post("/did/resolve", {
+  const didPathPrefix = `${fastify.prefix}/did/`;
+
+  /**
+   * The DID as the request wire carried it, not as the router decoded it.
+   *
+   * A DID is already a valid path segment, and any %XX in it is part of the
+   * DID: did:web:example.com%3A8080 names a port precisely because the %3A is
+   * not a colon. The router's params arrive decoded, which would collapse that
+   * DID into a different one, so the path segment is taken verbatim instead.
+   */
+  const didInPath = (rawUrl: string | undefined, suffix: string): string => {
+    const path = (rawUrl ?? "").split("?")[0];
+    const segment = path.slice(didPathPrefix.length);
+    return suffix !== "" && segment.endsWith(suffix)
+      ? segment.slice(0, -suffix.length)
+      : segment;
+  };
+
+  const resolved = async (did: string, reply: FastifyReply) => {
+    const result = await resolveDID(did);
+
+    const error = result.didResolutionMetadata.error;
+    if (error) {
+      reply.status(RESOLUTION_ERROR_STATUS[error] ?? 404);
+    }
+
+    return result;
+  };
+
+  fastify.get("/did/:did", {
     schema: {
       tags: ["DID"],
       summary: "Resolve a DID (did:web + did:webvh + did:peer:2 + did:peer:4)",
-      body: Type.Object({
-        did: Type.String({
-          description: "DID to resolve, e.g. did:web:example.com",
-        }),
-      }),
+      description:
+        "The DID goes in the path as it is — its own percent-escapes and all. Errors come back as a DID Resolution Result too, with the reason in didResolutionMetadata.error.",
+      params: DIDParams,
       response: {
         200: DIDResolutionResult,
         400: DIDResolutionResult,
@@ -46,58 +74,64 @@ export async function didRoutes(fastify: TypedFastify) {
       },
     },
     handler: async (request, reply) => {
-      const { did } = request.body;
-
-      const result = await resolveDID(did);
-
-      const error = result.didResolutionMetadata.error;
-      if (error) {
-        reply.status(RESOLUTION_ERROR_STATUS[error] ?? 404);
-      }
-
-      return result;
+      return resolved(didInPath(request.raw.url, ""), reply);
     },
   });
 
-  fastify.post("/did/didcomm-doc", {
+  fastify.post("/did/resolve", {
+    schema: {
+      tags: ["DID"],
+      summary: "Resolve a DID passed in the body",
+      description:
+        "GET /did/{did} for the DIDs a URL cannot comfortably hold, such as a long form did:peer:4.",
+      body: DIDResolveRequest,
+      response: {
+        200: DIDResolutionResult,
+        400: DIDResolutionResult,
+        404: DIDResolutionResult,
+      },
+    },
+    handler: async (request, reply) => {
+      return resolved(request.body.did, reply);
+    },
+  });
+
+  fastify.get("/did/:did/didcomm", {
     schema: {
       tags: ["DID"],
       summary: "Resolve a DID into the DIDComm DIDDoc format",
       description:
-        "Resolves a DID and converts the document into the flat shape the /didcomm/* endpoints accept: absolute DID URLs, embedded verification methods hoisted, non-DIDCommMessaging services dropped.",
-      body: DIDCommDIDDocRequest,
+        "Resolves a DID and converts the document into the flat shape the /didcomm/* endpoints accept: absolute DID URLs, embedded verification methods hoisted, non-DIDCommMessaging services dropped. A DID that does not resolve answers exactly as GET /did/{did} does.",
+      params: DIDParams,
       response: {
         200: DIDCommDIDDocResponse,
-        400: ErrorResponse,
-        404: ErrorResponse,
+        400: DIDResolutionResult,
+        404: DIDResolutionResult,
       },
     },
     handler: async (request, reply) => {
-      const { did } = request.body;
-
+      const did = didInPath(request.raw.url, "/didcomm");
       const result = await resolveDID(did);
-      const error = result.didResolutionMetadata.error;
 
+      const error = result.didResolutionMetadata.error;
       if (error || result.didDocument === null) {
-        return reply.status(RESOLUTION_ERROR_STATUS[error ?? ""] ?? 404).send({
-          error: error ?? "notFound",
-          message: result.didResolutionMetadata.message ?? `Could not resolve ${did}`,
-        });
+        reply.status(RESOLUTION_ERROR_STATUS[error ?? ""] ?? 404);
+        return result;
       }
 
       return { didDoc: toDIDCommDIDDoc(result.didDocument) };
     },
   });
 
-  fastify.post("/did/peer/4", {
+  fastify.post("/did/peer/4/encode", {
     schema: {
       tags: ["DID"],
-      summary: "Create a did:peer:4 from an input document",
+      summary: "Derive a did:peer:4 from an input document",
       description:
-        "Derives the long and short form did:peer:4 for an input document and returns both resolved documents, plus a DIDComm-ready DIDDoc for the long form.",
-      body: PeerDID4CreateRequest,
+        "Derives the long and short form did:peer:4 for an input document and returns both resolved documents, plus a DIDComm-ready DIDDoc for the long form. The keys already exist and stay wherever they live — only the document travels.",
+      body: PeerDID4EncodeRequest,
       response: {
-        200: PeerDID4CreateResponse,
+        200: PeerDID4EncodeResponse,
         400: ErrorResponse,
       },
     },
@@ -124,12 +158,12 @@ export async function didRoutes(fastify: TypedFastify) {
     },
   });
 
-  fastify.post("/did/peer/4/create", {
+  fastify.post("/did/peer/4/generate", {
     schema: {
       tags: ["DID"],
       summary: "Generate keys and the did:peer:4 that names them",
       description:
-        "Everything /did/peer/4 needs, made here: fresh keys, the input document, the DID, and the secrets to use it. The private keys are in the response, so this suits an identity meant to be temporary — a test, a demo, one side of a conversation nobody will resume. A DID that stands for somebody generates its keys where they will live.",
+        "Everything /did/peer/4/encode needs, made here: fresh keys, the input document, the DID, and the secrets to use it. The private keys are in the response, so this suits an identity meant to be temporary — a test, a demo, one side of a conversation nobody will resume. A DID that stands for somebody generates its keys where they will live.",
       body: PeerDID4GenerateRequest,
       response: {
         200: PeerDID4GenerateResponse,

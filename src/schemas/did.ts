@@ -121,13 +121,13 @@ const PeerDID4InputDocument = Type.Record(Type.String(), Type.Unknown(), {
   ],
 });
 
-export const PeerDID4CreateRequest = Type.Object(
+export const PeerDID4EncodeRequest = Type.Object(
   { document: PeerDID4InputDocument },
   { description: "Derive a did:peer:4 from an input document" }
 );
-export type PeerDID4CreateRequest = Static<typeof PeerDID4CreateRequest>;
+export type PeerDID4EncodeRequest = Static<typeof PeerDID4EncodeRequest>;
 
-export const PeerDID4CreateResponse = Type.Object(
+export const PeerDID4EncodeResponse = Type.Object(
   {
     did: Type.String({ description: "Long form did:peer:4 (self-certifying)" }),
     shortDid: Type.String({ description: "Short form did:peer:4" }),
@@ -141,7 +141,7 @@ export const PeerDID4CreateResponse = Type.Object(
   },
   { description: "Derived did:peer:4 identifiers and documents" }
 );
-export type PeerDID4CreateResponse = Static<typeof PeerDID4CreateResponse>;
+export type PeerDID4EncodeResponse = Static<typeof PeerDID4EncodeResponse>;
 
 export const PeerDID4GenerateRequest = Type.Object(
   {
@@ -207,15 +207,28 @@ export type PeerDID4ResolveShortRequest = Static<
   typeof PeerDID4ResolveShortRequest
 >;
 
-export const DIDCommDIDDocRequest = Type.Object(
+export const DIDParams = Type.Object(
   {
     did: Type.String({
-      description: "DID to resolve and convert to the DIDComm DIDDoc format",
+      description: "DID to resolve, e.g. did:web:example.com",
     }),
   },
-  { description: "Resolve a DID into the DIDComm WASM DIDDoc format" }
+  { description: "DID named in the path" }
 );
-export type DIDCommDIDDocRequest = Static<typeof DIDCommDIDDocRequest>;
+export type DIDParams = Static<typeof DIDParams>;
+
+export const DIDResolveRequest = Type.Object(
+  {
+    did: Type.String({
+      description: "DID to resolve, e.g. did:web:example.com",
+    }),
+  },
+  {
+    description:
+      "Resolve a DID passed in the body — for the DIDs a URL cannot hold, such as a long form did:peer:4",
+  }
+);
+export type DIDResolveRequest = Static<typeof DIDResolveRequest>;
 
 export const DIDCommDIDDocResponse = Type.Object(
   { didDoc: DIDDoc },

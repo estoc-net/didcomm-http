@@ -10,6 +10,8 @@ const DIDCOMM_ERROR_STATUS: Record<string, number> = {
   DIDCommUnsupported: 400,
   DIDCommIoError: 502,
   DIDCommInvalidState: 500,
+  DeliveryRefused: 400,
+  DeliveryFailed: 502,
 };
 
 export function errorHandler(

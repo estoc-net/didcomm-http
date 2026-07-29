@@ -8,9 +8,18 @@ import { sharedSchemas } from "./schemas/shared.js";
 import type { TypeBoxProvider } from "./types/fastify.js";
 import { errorHandler } from "./plugins/error-handler.js";
 
-export async function buildServer() {
+export interface ServerOptions {
+  /** Let /didcomm/send POST to private networks — development only. */
+  allowPrivateDelivery?: boolean;
+}
+
+export async function buildServer(options: ServerOptions = {}) {
   const fastify = Fastify({
     logger: true,
+    // The router's default cap on a path parameter is 100 chars, and a DID in
+    // GET /did/{did} is routinely longer — a did:peer:2 with one service
+    // already is. Anything longer than this belongs in POST /did/resolve.
+    routerOptions: { maxParamLength: 8192 },
   }).withTypeProvider<TypeBoxProvider>();
 
   await fastify.register(swagger, {
@@ -18,8 +27,8 @@ export async function buildServer() {
       info: {
         title: "DIDComm HTTP API",
         description:
-          "HTTP wrapper for DIDComm WASM (didcomm-rust) and DID resolution (did:web + did:webvh)",
-        version: "0.1.0",
+          "HTTP wrapper for DIDComm WASM (didcomm-rust) and DID resolution (did:web + did:webvh + did:peer)",
+        version: "1.0.0",
       },
       tags: [
         {
@@ -48,8 +57,13 @@ export async function buildServer() {
 
   fastify.setErrorHandler(errorHandler);
 
-  await fastify.register(didcommRoutes);
-  await fastify.register(didRoutes);
+  // Everything below /v1 is the API's contract; /health and /openapi.json
+  // describe the server itself and stay unversioned.
+  await fastify.register(didcommRoutes, {
+    prefix: "/v1",
+    allowPrivateDelivery: options.allowPrivateDelivery ?? false,
+  });
+  await fastify.register(didRoutes, { prefix: "/v1" });
 
   // Answering at all is the whole test: the WASM is loaded at import time, so a
   // server that is listening is a server that can pack.

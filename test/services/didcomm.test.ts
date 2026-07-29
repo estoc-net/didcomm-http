@@ -23,8 +23,8 @@ describe("DIDComm service", () => {
       });
 
       expect(packed.packedMessage).toBeTypeOf("string");
-      expect(packed.metadata.from_kid).toContain("did:example:alice");
-      expect(packed.metadata.to_kids.length).toBeGreaterThan(0);
+      expect(packed.metadata.fromKid).toContain("did:example:alice");
+      expect(packed.metadata.toKids.length).toBeGreaterThan(0);
 
       const unpacked = await unpack({
         message: packed.packedMessage,
@@ -48,7 +48,7 @@ describe("DIDComm service", () => {
       });
 
       expect(packed.packedMessage).toBeTypeOf("string");
-      expect(packed.metadata.from_kid).toBeFalsy();
+      expect(packed.metadata.fromKid).toBeFalsy();
 
       const unpacked = await unpack({
         message: packed.packedMessage,
@@ -58,7 +58,7 @@ describe("DIDComm service", () => {
 
       expect(unpacked.message.id).toBe(MESSAGE_SIMPLE.id);
       expect(unpacked.metadata.encrypted).toBe(true);
-      expect(unpacked.metadata.anonymous_sender).toBe(true);
+      expect(unpacked.metadata.anonymousSender).toBe(true);
     });
 
     it("authenticated encryption with signing (non-repudiation)", async () => {
@@ -66,12 +66,12 @@ describe("DIDComm service", () => {
         message: MESSAGE_SIMPLE,
         to: "did:example:bob",
         from: "did:example:alice",
-        sign_by: "did:example:alice",
+        signBy: "did:example:alice",
         didDocs: allDocs,
         secrets: ALICE_SECRETS,
       });
 
-      expect(packed.metadata.sign_by_kid).toContain("did:example:alice");
+      expect(packed.metadata.signByKid).toContain("did:example:alice");
 
       const unpacked = await unpack({
         message: packed.packedMessage,
@@ -79,8 +79,8 @@ describe("DIDComm service", () => {
         secrets: BOB_SECRETS,
       });
 
-      expect(unpacked.metadata.non_repudiation).toBe(true);
-      expect(unpacked.metadata.signed_message).toBeTypeOf("string");
+      expect(unpacked.metadata.nonRepudiation).toBe(true);
+      expect(unpacked.metadata.signedMessage).toBeTypeOf("string");
     });
   });
 
@@ -88,13 +88,13 @@ describe("DIDComm service", () => {
     it("signed message", async () => {
       const packed = await packSigned({
         message: MESSAGE_SIMPLE,
-        sign_by: "did:example:alice",
+        signBy: "did:example:alice",
         didDocs: allDocs,
         secrets: ALICE_SECRETS,
       });
 
       expect(packed.packedMessage).toBeTypeOf("string");
-      expect(packed.metadata.sign_by_kid).toContain("did:example:alice");
+      expect(packed.metadata.signByKid).toContain("did:example:alice");
 
       const unpacked = await unpack({
         message: packed.packedMessage,
@@ -103,7 +103,7 @@ describe("DIDComm service", () => {
       });
 
       expect(unpacked.message.id).toBe(MESSAGE_SIMPLE.id);
-      expect(unpacked.metadata.non_repudiation).toBe(true);
+      expect(unpacked.metadata.nonRepudiation).toBe(true);
       expect(unpacked.metadata.encrypted).toBe(false);
     });
   });
@@ -129,7 +129,7 @@ describe("DIDComm service", () => {
 
       expect(unpacked.message.id).toBe(MESSAGE_SIMPLE.id);
       expect(unpacked.metadata.encrypted).toBe(false);
-      expect(unpacked.metadata.non_repudiation).toBe(false);
+      expect(unpacked.metadata.nonRepudiation).toBe(false);
     });
 
     it("minimal message", async () => {

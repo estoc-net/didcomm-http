@@ -23,7 +23,7 @@ describe("where a packed message goes", () => {
 
     expect(packed.deliveryEndpoint).toBe("https://bob.example/in");
     // Nobody stands in front of Bob, so nothing was wrapped for anybody.
-    expect(packed.metadata.messaging_service).toBeFalsy();
+    expect(packed.metadata.messagingService).toBeFalsy();
   });
 
   // The case that makes a browser tab or a phone reachable at all: the agent
@@ -115,7 +115,7 @@ describe("who a message is from", () => {
 
     const packed = await packSigned({
       message: message("did:web:merely.ca", "did:web:merely.ca"),
-      sign_by: alice.did,
+      signBy: alice.did,
       secrets: alice.secrets,
     });
 
@@ -125,7 +125,7 @@ describe("who a message is from", () => {
     expect(opened.verifiedFrom).toBe(alice.did);
     expect(opened.senderVerified).toBe(false);
     // Something really was proven here — just not what the message says.
-    expect(opened.metadata.non_repudiation).toBe(true);
+    expect(opened.metadata.nonRepudiation).toBe(true);
   });
 
   it("is proven by nobody when the envelope was packed anonymously", async () => {

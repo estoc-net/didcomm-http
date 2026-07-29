@@ -33,6 +33,11 @@ export const Attachment = shared(
   )
 );
 
+// The message keeps the spec's snake_case (`created_time`, `from_prior`):
+// these fields are the DIDComm wire format, and a body that round-trips
+// through pack and unpack unchanged is worth more than a consistent casing.
+// Everything that is this API's own — options, metadata — is camelCase.
+//
 // `Message` in the document, `IMessage` here: the I is didcomm-rust's WASM
 // interface naming, which a client of this API has no reason to inherit.
 export const IMessage = shared(
@@ -91,92 +96,142 @@ const secretsFor = (whose: string) =>
 
 // --- Pack Encrypted ---
 
-export const PackEncryptedRequest = Type.Object(
-  {
-    message: IMessage,
-    to: Type.String({ description: "Recipient DID or key ID" }),
-    from: Type.Optional(
-      Type.Union([Type.String(), Type.Null()], {
-        description: "Sender DID or key ID (null for anonymous)",
-      })
-    ),
-    sign_by: Type.Optional(
-      Type.Union([Type.String(), Type.Null()], {
-        description: "Signer DID or key ID for non-repudiation",
-      })
-    ),
-    options: Type.Optional(
-      Type.Object({
-        protect_sender: Type.Optional(
-          Type.Boolean({ description: "Hide sender from mediators" })
-        ),
-        forward: Type.Optional(
-          Type.Boolean({
-            description:
-              "Wrap in Forward messages for whatever mediators stand in front of the recipient (default: true)",
-          })
-        ),
-        forward_headers: Type.Optional(
-          Type.Array(Type.Tuple([Type.String(), Type.String()]))
-        ),
-        messaging_service: Type.Optional(
-          Type.String({ description: "DID URL of messaging service" })
-        ),
-        enc_alg_auth: Type.Optional(
-          Type.Literal("A256cbcHs512Ecdh1puA256kw", {
-            description: "Authenticated encryption algorithm",
-          })
-        ),
-        enc_alg_anon: Type.Optional(
-          Type.Union(
-            [
-              Type.Literal("A256cbcHs512EcdhEsA256kw"),
-              Type.Literal("Xc20pEcdhEsA256kw"),
-              Type.Literal("A256gcmEcdhEsA256kw"),
-            ],
-            { description: "Anonymous encryption algorithm" }
-          )
-        ),
-      })
-    ),
-    didDocs: PinnedDIDDocs,
-    secrets: secretsFor("Sender"),
-  },
-  { description: "Pack encrypted request" }
+export const PackEncryptedOptions = shared(
+  "PackEncryptedOptions",
+  Type.Object(
+    {
+      protectSender: Type.Optional(
+        Type.Boolean({ description: "Hide sender from mediators" })
+      ),
+      forward: Type.Optional(
+        Type.Boolean({
+          description:
+            "Wrap in Forward messages for whatever mediators stand in front of the recipient (default: true)",
+        })
+      ),
+      forwardHeaders: Type.Optional(
+        Type.Array(Type.Tuple([Type.String(), Type.String()]), {
+          description: "Extra headers for the Forward messages",
+        })
+      ),
+      messagingService: Type.Optional(
+        Type.String({ description: "DID URL of messaging service" })
+      ),
+      encAlgAnon: Type.Optional(
+        Type.Union(
+          [
+            Type.Literal("A256cbcHs512EcdhEsA256kw"),
+            Type.Literal("Xc20pEcdhEsA256kw"),
+            Type.Literal("A256gcmEcdhEsA256kw"),
+          ],
+          { description: "Anonymous encryption algorithm" }
+        )
+      ),
+    },
+    { description: "Encryption options" }
+  )
 );
-export type PackEncryptedRequest = Static<typeof PackEncryptedRequest>;
+export type PackEncryptedOptions = Static<typeof PackEncryptedOptions>;
 
-export const PackEncryptedMetadata = Type.Object({
-  messaging_service: Type.Optional(
-    Type.Object({
-      id: Type.String(),
-      service_endpoint: Type.String(),
+// One list, two operations: /didcomm/pack/encrypted answers with the packed
+// message, /didcomm/send goes on to deliver it.
+const packEncryptedFields = {
+  message: IMessage,
+  to: Type.String({ description: "Recipient DID or key ID" }),
+  from: Type.Optional(
+    Type.Union([Type.String(), Type.Null()], {
+      description: "Sender DID or key ID (null for anonymous)",
     })
   ),
-  from_kid: Type.Optional(Type.String()),
-  sign_by_kid: Type.Optional(Type.String()),
-  to_kids: Type.Array(Type.String()),
+  signBy: Type.Optional(
+    Type.Union([Type.String(), Type.Null()], {
+      description: "Signer DID or key ID for non-repudiation",
+    })
+  ),
+  options: Type.Optional(PackEncryptedOptions),
+  didDocs: PinnedDIDDocs,
+  secrets: secretsFor("Sender"),
+};
+
+export const PackEncryptedRequest = Type.Object(packEncryptedFields, {
+  description: "Pack encrypted request",
+});
+export type PackEncryptedRequest = Static<typeof PackEncryptedRequest>;
+
+export const PackEncryptedMetadata = shared(
+  "PackEncryptedMetadata",
+  Type.Object(
+    {
+      messagingService: Type.Optional(
+        Type.Object({
+          id: Type.String(),
+          serviceEndpoint: Type.String(),
+        })
+      ),
+      fromKid: Type.Optional(Type.String()),
+      signByKid: Type.Optional(Type.String()),
+      toKids: Type.Array(Type.String()),
+    },
+    { description: "What the packer chose: the keys, and any forward" }
+  )
+);
+export type PackEncryptedMetadata = Static<typeof PackEncryptedMetadata>;
+
+const DeliveryEndpoint = Type.Union([Type.String(), Type.Null()], {
+  description:
+    "Where to POST the packed message: a mediator's address when the message was wrapped in a Forward, the recipient's own otherwise, and null when the recipient publishes no DIDComm endpoint at all — which means they can only be answered on a connection they opened",
 });
 
 export const PackEncryptedResponse = Type.Object(
   {
     packedMessage: Type.String({ description: "Packed JWE message" }),
-    deliveryEndpoint: Type.Union([Type.String(), Type.Null()], {
-      description:
-        "Where to POST the packed message: a mediator's address when the message was wrapped in a Forward, the recipient's own otherwise, and null when the recipient publishes no DIDComm endpoint at all — which means they can only be answered on a connection they opened",
-    }),
+    deliveryEndpoint: DeliveryEndpoint,
     metadata: PackEncryptedMetadata,
   },
   { description: "Pack encrypted response" }
 );
 export type PackEncryptedResponse = Static<typeof PackEncryptedResponse>;
 
+// --- Send ---
+
+export const SendRequest = Type.Object(packEncryptedFields, {
+  description:
+    "Pack a message encrypted and POST it where it goes — /didcomm/pack/encrypted plus the delivery, in one call",
+});
+export type SendRequest = Static<typeof SendRequest>;
+
+export const SendResponse = Type.Object(
+  {
+    packedMessage: Type.String({ description: "Packed JWE message" }),
+    deliveryEndpoint: Type.String({
+      description: "The address the message was POSTed to",
+    }),
+    metadata: PackEncryptedMetadata,
+    delivery: Type.Object(
+      {
+        status: Type.Number({
+          description:
+            "HTTP status the endpoint answered with — reported, not judged: a 4xx from the recipient is still a delivered request",
+        }),
+        response: Type.Optional(
+          Type.String({
+            description: "Response body, when there was one (truncated to 8 KiB)",
+          })
+        ),
+      },
+      { description: "What happened at the recipient's endpoint" }
+    ),
+  },
+  { description: "Send response" }
+);
+export type SendResponse = Static<typeof SendResponse>;
+
 // --- Pack Signed ---
 
 export const PackSignedRequest = Type.Object(
   {
     message: IMessage,
-    sign_by: Type.String({ description: "Signer DID or key ID" }),
+    signBy: Type.String({ description: "Signer DID or key ID" }),
     didDocs: PinnedDIDDocs,
     secrets: secretsFor("Signer"),
   },
@@ -188,7 +243,7 @@ export const PackSignedResponse = Type.Object(
   {
     packedMessage: Type.String({ description: "Packed JWS message" }),
     metadata: Type.Object({
-      sign_by_kid: Type.String(),
+      signByKid: Type.String(),
     }),
   },
   { description: "Pack signed response" }
@@ -223,8 +278,8 @@ export const UnpackRequest = Type.Object(
     message: Type.String({ description: "Packed message (JWE/JWS/JSON)" }),
     options: Type.Optional(
       Type.Object({
-        expect_decrypt_by_all_keys: Type.Optional(Type.Boolean()),
-        unwrap_re_wrapping_forward: Type.Optional(Type.Boolean()),
+        expectDecryptByAllKeys: Type.Optional(Type.Boolean()),
+        unwrapReWrappingForward: Type.Optional(Type.Boolean()),
       })
     ),
     didDocs: PinnedDIDDocs,
@@ -237,18 +292,18 @@ export type UnpackRequest = Static<typeof UnpackRequest>;
 export const UnpackMetadata = Type.Object({
   encrypted: Type.Boolean(),
   authenticated: Type.Boolean(),
-  non_repudiation: Type.Boolean(),
-  anonymous_sender: Type.Boolean(),
-  re_wrapped_in_forward: Type.Boolean(),
-  encrypted_from_kid: Type.Optional(Type.String()),
-  encrypted_to_kids: Type.Optional(Type.Array(Type.String())),
-  sign_from: Type.Optional(Type.String()),
-  from_prior_issuer_kid: Type.Optional(Type.String()),
-  enc_alg_auth: Type.Optional(Type.String()),
-  enc_alg_anon: Type.Optional(Type.String()),
-  sign_alg: Type.Optional(Type.String()),
-  signed_message: Type.Optional(Type.String()),
-  from_prior: Type.Optional(Type.Unknown()),
+  nonRepudiation: Type.Boolean(),
+  anonymousSender: Type.Boolean(),
+  reWrappedInForward: Type.Boolean(),
+  encryptedFromKid: Type.Optional(Type.String()),
+  encryptedToKids: Type.Optional(Type.Array(Type.String())),
+  signFrom: Type.Optional(Type.String()),
+  fromPriorIssuerKid: Type.Optional(Type.String()),
+  encAlgAuth: Type.Optional(Type.String()),
+  encAlgAnon: Type.Optional(Type.String()),
+  signAlg: Type.Optional(Type.String()),
+  signedMessage: Type.Optional(Type.String()),
+  fromPrior: Type.Optional(Type.Unknown()),
 });
 
 export const UnpackResponse = Type.Object(
@@ -265,7 +320,6 @@ export const UnpackResponse = Type.Object(
     senderVerified: Type.Boolean({
       description: "Whether the claimed sender is the proven one",
     }),
-    encrypted: Type.Boolean(),
     metadata: UnpackMetadata,
   },
   { description: "Unpack response" }
