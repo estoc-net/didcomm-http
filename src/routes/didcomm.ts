@@ -41,6 +41,7 @@ export async function didcommRoutes(
       response: {
         200: PackEncryptedResponse,
         400: ErrorResponse,
+        404: ErrorResponse,
       },
     },
     handler: async (request) => {
@@ -53,11 +54,12 @@ export async function didcommRoutes(
       tags: ["DIDComm"],
       summary: "Pack an encrypted DIDComm message and deliver it",
       description:
-        "Packs exactly as /didcomm/pack/encrypted does, then POSTs the result to its deliveryEndpoint. The recipient's HTTP answer is reported as data, whatever it was; only this server's own failures are errors — a recipient with no endpoint (400) or one that could not be reached (502).",
+        "Packs exactly as /didcomm/pack/encrypted does, then POSTs the result to its deliveryEndpoint. The recipient's HTTP answer is reported as data, whatever it was; only this server's own failures are errors — a recipient whose DID does not resolve (404), one with no endpoint (400), or one that could not be reached (502).",
       body: SendRequest,
       response: {
         200: SendResponse,
         400: ErrorResponse,
+        404: ErrorResponse,
         502: ErrorResponse,
       },
     },
@@ -89,6 +91,7 @@ export async function didcommRoutes(
       response: {
         200: PackSignedResponse,
         400: ErrorResponse,
+        404: ErrorResponse,
       },
     },
     handler: async (request) => {
@@ -104,6 +107,7 @@ export async function didcommRoutes(
       response: {
         200: PackPlaintextResponse,
         400: ErrorResponse,
+        404: ErrorResponse,
       },
     },
     handler: async (request) => {
@@ -119,6 +123,7 @@ export async function didcommRoutes(
       response: {
         200: UnpackResponse,
         400: ErrorResponse,
+        404: ErrorResponse,
       },
     },
     handler: async (request) => {
