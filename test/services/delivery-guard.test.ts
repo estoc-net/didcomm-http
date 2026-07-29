@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { createServer } from "node:http";
 import {
   deliver,
   DeliveryFailed,
@@ -26,6 +27,16 @@ describe("what deliver refuses to touch", () => {
   it("IPv4 hidden inside an IPv6 mapping", () =>
     refused("http://[::ffff:127.0.0.1]:3000/didcomm"));
 
+  // IPv6 is an allowlist — global unicast or nothing — so the ranges nobody
+  // thought to blocklist are refused too.
+  it("deprecated site-local IPv6, which intranets still route", () =>
+    refused("http://[fec0::1]:3000/didcomm"));
+
+  it("IPv6 multicast", () => refused("http://[ff02::1]:3000/didcomm"));
+
+  it("the IPv6 documentation range", () =>
+    refused("http://[2001:db8::1]:3000/didcomm"));
+
   it("schemes that are not HTTP", () =>
     refused("wss://example.com/didcomm"));
 
@@ -42,5 +53,39 @@ describe("what deliver refuses to touch", () => {
     await expect(
       deliver("http://127.0.0.1:9/didcomm", "{}", { allowPrivate: true })
     ).rejects.toBeInstanceOf(DeliveryFailed);
+  });
+
+  it("reports a redirect instead of following it", async () => {
+    // The vetted address is the dialed address; a followed redirect would be
+    // neither, so it comes back as data. The Location points at a dead port —
+    // following it would fail loudly, which is how this test would catch it.
+    let hits = 0;
+    const server = createServer((req, res) => {
+      hits += 1;
+      res.statusCode = 302;
+      res.setHeader("location", "http://127.0.0.1:9/didcomm");
+      res.end();
+    });
+
+    await new Promise<void>((resolve) => {
+      server.listen(0, "127.0.0.1", resolve);
+    });
+    const address = server.address();
+    if (address === null || typeof address === "string") {
+      throw new Error("redirecting server has no port");
+    }
+
+    try {
+      const receipt = await deliver(
+        `http://127.0.0.1:${address.port}/didcomm`,
+        "{}",
+        { allowPrivate: true }
+      );
+
+      expect(receipt.status).toBe(302);
+      expect(hits).toBe(1);
+    } finally {
+      await new Promise((resolve) => server.close(resolve));
+    }
   });
 });

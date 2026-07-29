@@ -58,7 +58,9 @@ one party that cannot read it.
 POSTs the result to the `deliveryEndpoint` as
 `application/didcomm-encrypted+json`. The recipient's HTTP answer comes back as
 data (`delivery.status`, `delivery.response`), whatever it was — their 4xx is a
-delivered request. Only this server's own failures are errors: a recipient with
+delivered request, and their redirect is reported as its 3xx rather than
+followed, since following one would carry the message to an address the
+private-network check never saw. Only this server's own failures are errors: a recipient with
 no endpoint (400), an endpoint that could not be reached (502), or an endpoint
 that points into a private network (400). That last one is the default posture,
 because a service endpoint is the counterparty's to write, and a server that

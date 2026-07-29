@@ -211,7 +211,7 @@ export const SendResponse = Type.Object(
       {
         status: Type.Number({
           description:
-            "HTTP status the endpoint answered with — reported, not judged: a 4xx from the recipient is still a delivered request",
+            "HTTP status the endpoint answered with — reported, not judged: a 4xx from the recipient is still a delivered request, and a redirect comes back as its 3xx rather than being followed",
         }),
         response: Type.Optional(
           Type.String({

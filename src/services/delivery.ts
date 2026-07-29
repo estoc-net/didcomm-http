@@ -38,17 +38,25 @@ PRIVATE_RANGES.addSubnet("127.0.0.0", 8);
 PRIVATE_RANGES.addSubnet("169.254.0.0", 16);
 PRIVATE_RANGES.addSubnet("172.16.0.0", 12);
 PRIVATE_RANGES.addSubnet("192.0.0.0", 24);
+PRIVATE_RANGES.addSubnet("192.0.2.0", 24);
+PRIVATE_RANGES.addSubnet("192.88.99.0", 24);
 PRIVATE_RANGES.addSubnet("192.168.0.0", 16);
 PRIVATE_RANGES.addSubnet("198.18.0.0", 15);
+PRIVATE_RANGES.addSubnet("198.51.100.0", 24);
+PRIVATE_RANGES.addSubnet("203.0.113.0", 24);
 PRIVATE_RANGES.addSubnet("224.0.0.0", 3);
-PRIVATE_RANGES.addSubnet("::", 128, "ipv6");
-PRIVATE_RANGES.addSubnet("::1", 128, "ipv6");
-// Dotted v4-mapped notation is unwrapped and judged as its IPv4; this catches
-// the hex spelling of the same range, at the price of refusing public hosts
-// that publish themselves that way — which nobody reachable honestly does.
-PRIVATE_RANGES.addSubnet("::ffff:0:0", 96, "ipv6");
-PRIVATE_RANGES.addSubnet("fc00::", 7, "ipv6");
-PRIVATE_RANGES.addSubnet("fe80::", 10, "ipv6");
+// Inside 2000::/3 but never routed: the documentation range.
+PRIVATE_RANGES.addSubnet("2001:db8::", 32, "ipv6");
+
+/**
+ * IPv6 is judged the other way around: 2000::/3 (global unicast) is the only
+ * kind of address the public internet routes, so everything outside it —
+ * loopback, link-local, unique-local, the deprecated-but-routable site-local
+ * fec0::/10, multicast, NAT64 prefixes, v4-mapped spellings — is refused
+ * without having to be enumerated.
+ */
+const GLOBAL_UNICAST_V6 = new BlockList();
+GLOBAL_UNICAST_V6.addSubnet("2000::", 3, "ipv6");
 
 function isPrivateAddress(address: string): boolean {
   const family = isIP(address);
@@ -59,7 +67,8 @@ function isPrivateAddress(address: string): boolean {
 
   if (family === 6) {
     // An IPv4-mapped address reaches the IPv4 host it embeds, so it is
-    // whatever that host is.
+    // whatever that host is. The hex spelling of the same range falls
+    // outside 2000::/3 and is refused below.
     const mapped = address.toLowerCase().startsWith("::ffff:")
       ? address.slice("::ffff:".length)
       : null;
@@ -68,7 +77,10 @@ function isPrivateAddress(address: string): boolean {
       return isPrivateAddress(mapped);
     }
 
-    return PRIVATE_RANGES.check(address, "ipv6");
+    return (
+      !GLOBAL_UNICAST_V6.check(address, "ipv6") ||
+      PRIVATE_RANGES.check(address, "ipv6")
+    );
   }
 
   // Not an address at all.
@@ -214,6 +226,11 @@ export async function deliver(
       body: packedMessage,
       dispatcher: allowPrivate ? openAgent : guardedAgent,
       signal: AbortSignal.timeout(DELIVERY_TIMEOUT_MS),
+      // The address vetted is the address dialed, and a redirect is the
+      // endpoint naming a different one — followed, it would carry the
+      // message wherever it says, including to an IP literal the guarded
+      // lookup never sees. It comes back as the 3xx it was.
+      redirect: "manual",
     });
 
     const response = await responsePrefix(res.body);
