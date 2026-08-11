@@ -213,7 +213,7 @@ Images are published to GitHub Container Registry on every push to `main`, for
 `linux/amd64` and `linux/arm64`.
 
 ```bash
-docker run -p 3000:3000 ghcr.io/onyxblade/didcomm-http
+docker run -p 3000:3000 ghcr.io/estoc-net/didcomm-http
 ```
 
 Tags: `latest` (tip of `main`), `sha-<short>` for any commit, and `X.Y.Z` /

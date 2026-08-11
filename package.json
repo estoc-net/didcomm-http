@@ -9,7 +9,7 @@
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
     "openapi:export": "node --import tsx scripts/export-openapi.ts",
-    "docker:build": "docker build -t ghcr.io/onyxblade/didcomm-http ."
+    "docker:build": "docker build -t ghcr.io/estoc-net/didcomm-http ."
   },
   "author": "merely",
   "license": "Apache-2.0",
