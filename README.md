@@ -228,6 +228,12 @@ Tags: `latest` (tip of `main`), `sha-<short>` for any commit, and `X.Y.Z` /
 | `DID_CACHE_TTL` | `300` | Seconds a fetched DID document is reused |
 | `ALLOW_PRIVATE_DELIVERY` | `false` | Let `/v1/didcomm/send` POST to private networks — development only |
 
+## Status
+
+Experimental. This server and the didcomm libraries under it have not received
+an independent security audit, and the API may still change. Use it to build
+and learn against; don't yet trust it with anything valuable.
+
 ## License
 
 Apache-2.0
