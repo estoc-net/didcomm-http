@@ -7,9 +7,9 @@ import {
   longToShort,
   resolveLongForm,
   resolveShortForm,
+  toDIDCommDIDDoc,
   type PeerDocument,
-} from "./did-peer-4.js";
-import { toDIDCommDIDDoc } from "./did-doc.js";
+} from "@estoc/did-peer";
 
 /**
  * A whole did:peer:4 identity made from nothing: fresh keys, the document that

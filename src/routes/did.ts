@@ -14,7 +14,7 @@ import {
 import { ErrorResponse } from "../schemas/didcomm.js";
 
 import { resolveDID } from "../services/did-resolver.js";
-import { toDIDCommDIDDoc } from "../services/did-doc.js";
+import { toDIDCommDIDDoc } from "@estoc/did-peer";
 import { CURVES, createIdentity } from "../services/identity.js";
 import {
   encodeLongForm,
@@ -23,7 +23,7 @@ import {
   resolveShortForm,
   resolveShortFormFromDocument,
   validateInputDocument,
-} from "../services/did-peer-4.js";
+} from "@estoc/did-peer";
 
 const RESOLUTION_ERROR_STATUS: Record<string, 400> = {
   methodNotSupported: 400,
